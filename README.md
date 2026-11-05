@@ -14,8 +14,11 @@ half the score is presentation and design — which is winnable by one person wh
 
 ## The one-sentence brief
 
-Build a working application with Kiro that revives a dead technology to solve a problem someone
-actually has, and make the demo impossible to scroll past.
+> A cheap custom drone that counts warehouse stock by reading the labels already on the shelves —
+> and uses those same labels to know where it is.
+
+Category: **Frankenstein**. Target: **1st overall, $30,000**. Full reasoning in
+`docs/strategy.md`.
 
 ## Hard constraints (from the official rules)
 
@@ -66,12 +69,15 @@ SUBMISSION.md        submission checklist
 
 ## Next actions
 
-1. Lock the concept (see `docs/strategy.md`) — blocks everything else.
-2. Install Kiro, request the 4,000 credits, join `#kiroween-hackathon` on Discord.
-3. Create the public GitHub repo with MIT license and empty `/.kiro/`.
-4. Write the spec before writing code. The Kiro usage writeup is 20% of the score.
+1. **Hover test by 8 November.** Does the airframe hold position indoors for 60 seconds? If not,
+   manual flight is locked in and tuning stops. This gate decides the project.
+2. Write the spec in `.kiro/specs/` before any application code.
+3. Install Kiro, request the 4,000 credits, join `#kiroween-hackathon` on Discord.
+4. Create the public GitHub repo with MIT license and empty `/.kiro/`.
+5. Record five minutes of shelf footage — handheld is fine. Perception is built against that
+   before it ever flies.
 
 ## Rules of engagement
 
-No clinical claims. No "AI doctor". If the concept touches medicine, it routes and escalates;
-it does not diagnose. Judges punish overclaiming harder than they punish small scope.
+No claim that this is production-ready. No naming competitors in the video unless the claim has
+been verified. Judges punish overclaiming harder than they punish small scope.

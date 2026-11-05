@@ -1,37 +1,40 @@
-# Product steering — Code Blue
+# Product steering — Dead Reckoning
 
-> Status: draft. Locked when the concept is confirmed. Kiro reads this file on every task.
+> Status: locked 2026-11-05. Kiro reads this file on every task.
 
 ## What this is
 
-An agentic triage layer that sits between a hospital's nurse call system and its on-call pagers.
-It turns a free-text page into a routed, acknowledged, escalated event with an audit trail.
+A drone-based stocktake system for warehouses. It reads the barcodes already on the shelves,
+counts what it sees, and uses those same tags as position fixes so it knows where it is without
+any installed infrastructure.
 
 ## Who it is for
 
-The charge nurse who sends the page, and the resident who receives it. Not administrators, not
-patients, not insurers.
+The warehouse operations lead who currently pays two people to walk aisles with a clipboard, and
+the inventory manager who finds out about a miscount at month end.
 
 ## The problem, in one sentence
 
-Pagers survive in hospitals because they work when the network does not, but a page is one-way,
-free text, and unranked — so the right clinician finds out late, and nobody can prove who knew
-what when.
+Cycle counting is hours of human walking per aisle per week, and every existing drone system
+solves it by instrumenting the building first — markers, motion capture, or RTK — which costs more
+than the labour it replaces.
+
+## The thesis, in one sentence
+
+The shelf labels are the map.
 
 ## What it must never do
 
-- Never diagnose, never recommend treatment, never output a clinical decision.
-- Never invent an escalation policy. The policy is written by the customer and is the source of
-  truth; the agent only applies it.
-- Never take an irreversible action without an audit record.
+- Never claim a stock count is correct when confidence is low. Show the uncertainty.
+- Never invent a position. If there is no tag and no flow, say "unknown" and stop.
+- Never claim production readiness, regulatory approval, or a customer that does not exist.
 
 ## What good looks like
 
-A nurse types four words. Ninety seconds later the correct clinician's pager buzzes with a
-ranked reason. If nobody acknowledges in the policy window, the next one buzzes, and the log says
-exactly why.
+The drone flies one shelf row. The map fills in as it goes: bays, counts, gaps, duplicates. The
+operator sees a number they can act on before the battery lands.
 
 ## Voice
 
-Clinical, plain, unexcited. No exclamation marks. No "revolutionary". The product is calm because
-the situation is not.
+Operational, specific, unexcited. Numbers over adjectives. "14 of 16 bays counted, 2 need a
+rescan" — not "revolutionary inventory intelligence".
