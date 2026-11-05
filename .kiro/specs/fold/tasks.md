@@ -37,7 +37,10 @@ Ordered. Each task is small enough to finish in a sitting and leaves the repo ru
 - [ ] 4.4 Forward/back navigation preserving state
 - [ ] 4.5 Printable template with mountain/valley legend
 
-## Phase 4b — Animation, generated (19–22 Nov)
+## Phase 4b — Animation, generated (23–26 Nov, after the gate)
+
+> Deliberately after the fold gate. The gate needs a printable template and sentences, not a 3D
+> renderer. If the animation slips, the entry still stands.
 
 - [ ] 4b.1 Sheet mesh: N×N cells, shared vertices, in Three.js
 - [ ] 4b.2 Apply one operation: rotate a cell group around a hinge axis
