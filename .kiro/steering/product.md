@@ -1,40 +1,35 @@
-# Product steering — Dead Reckoning
+# Product steering — Fold
 
 > Status: locked 2026-11-05. Kiro reads this file on every task.
 
 ## What this is
 
-A drone-based stocktake system for warehouses. It reads the barcodes already on the shelves,
-counts what it sees, and uses those same tags as position fixes so it knows where it is without
-any installed infrastructure.
+A generator that turns a photograph of an object into a crease pattern and a fold plan, plus a
+renderer that walks a person through folding it.
 
 ## Who it is for
 
-The warehouse operations lead who currently pays two people to walk aisles with a clipboard, and
-the inventory manager who finds out about a miscount at month end.
+A secondary-school maths teacher with thirty students and no budget, teaching symmetry, angle and
+transformation with whatever is on the desk. Not hobbyist origami artists — they already have books.
 
 ## The problem, in one sentence
 
-Cycle counting is hours of human walking per aisle per week, and every existing drone system
-solves it by instrumenting the building first — markers, motion capture, or RTK — which costs more
-than the labour it replaces.
-
-## The thesis, in one sentence
-
-The shelf labels are the map.
+Spatial reasoning predicts STEM achievement and is barely taught, because the cheap way to teach it
+— folding paper — requires diagram literacy that most students do not have.
 
 ## What it must never do
 
-- Never claim a stock count is correct when confidence is low. Show the uncertainty.
-- Never invent a position. If there is no tag and no flow, say "unknown" and stop.
-- Never claim production readiness, regulatory approval, or a customer that does not exist.
+- Never claim "any object". The supported class is stated on screen.
+- Never present a library lookup as generation. If a pattern came from a template family, say so.
+- Never show a robot folding. The machine renderer does not exist until January.
+- Never claim the output is a faithful origami model when it is a relief or an abstraction.
 
 ## What good looks like
 
-The drone flies one shelf row. The map fills in as it goes: bays, counts, gaps, duplicates. The
-operator sees a number they can act on before the battery lands.
+A teacher photographs a mug. The app draws a crease pattern. A student folds it in six steps and
+holds up something that is recognisably a mug. The lesson takes eight minutes.
 
 ## Voice
 
-Operational, specific, unexcited. Numbers over adjectives. "14 of 16 bays counted, 2 need a
-rescan" — not "revolutionary inventory intelligence".
+Plain, specific, unhurried. "Six folds, about four minutes." No exclamation marks, no "unleash
+your creativity". The tone of a good worksheet, not a startup landing page.

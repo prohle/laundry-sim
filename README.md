@@ -14,8 +14,12 @@ half the score is presentation and design — which is winnable by one person wh
 
 ## The one-sentence brief
 
-> A cheap custom drone that counts warehouse stock by reading the labels already on the shelves —
-> and uses those same labels to know where it is.
+> Photograph any object with a clear silhouette, and get a crease pattern you can fold — derived
+> from the photo, not picked from a library.
+
+Two parts, one asset: the **generator** turns a photo into a fold plan, and the **folder** executes
+it. December ships the human renderer (animation, text, printable template). January adds the
+machine renderer.
 
 Category: **Frankenstein**. Target: **1st overall, $30,000**. Full reasoning in
 `docs/strategy.md`.
@@ -69,15 +73,18 @@ SUBMISSION.md        submission checklist
 
 ## Next actions
 
-1. **Hover test by 8 November.** Does the airframe hold position indoors for 60 seconds? If not,
-   manual flight is locked in and tuning stops. This gate decides the project.
-2. Write the spec in `.kiro/specs/` before any application code.
-3. Install Kiro, request the 4,000 credits, join `#kiroween-hackathon` on Discord.
-4. Create the public GitHub repo with MIT license and empty `/.kiro/`.
-5. Record five minutes of shelf footage — handheld is fine. Perception is built against that
-   before it ever flies.
+1. **Write the spec** in `.kiro/specs/` before any application code. The Kiro usage writeup is 20%
+   of the score and it is judged on artifacts that exist *before* the code.
+2. Install Kiro, request the 4,000 credits (closes 1 December, 12:00 pm PT), join
+   `#kiroween-hackathon` on Discord.
+3. Create the public GitHub repo: MIT license, About section, `/.kiro/` at root.
+4. Get segmentation working on three object photos. Nothing else matters until the silhouette is
+   clean.
+5. Pick the constrained family — box-pleated or grid relief — and write it down before coding.
 
 ## Rules of engagement
 
-No claim that this is production-ready. No naming competitors in the video unless the claim has
-been verified. Judges punish overclaiming harder than they punish small scope.
+- Never say "any object". Say "objects with a clear silhouette".
+- No robot in the December video, and no machine-execution claim in the text.
+- If the crease pattern comes from a template family, say so in the submission, not just the video.
+- Show one failure. A stated boundary reads as engineering.
