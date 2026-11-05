@@ -22,7 +22,7 @@ type WorkerOut =
   | { type: "model-error"; message: string }
   | { type: "encoding" }
   | { type: "encoded" }
-  | { type: "mask"; maskData: Uint8ClampedArray; width: number; height: number }
+  | { type: "mask"; maskData: Uint8ClampedArray; width: number; height: number; opaque: number }
   | { type: "error"; message: string };
 
 type ModelState = "idle" | "loading" | "ready" | "error";
@@ -53,6 +53,7 @@ export default function Home() {
     maskData: Uint8ClampedArray;
     width: number;
     height: number;
+    opaque: number;
     photoUrl: string; // which photo this mask belongs to
   } | null>(null);
   const maskCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -96,6 +97,7 @@ export default function Home() {
             maskData: msg.maskData,
             width: msg.width,
             height: msg.height,
+            opaque: msg.opaque,
             photoUrl: prev?.photoUrl ?? photoUrl ?? "",
           }));
           setSegmentState("done");
@@ -533,6 +535,26 @@ export default function Home() {
                   <span className="empty-state__text">{maskPanelLabel}</span>
                 </div>
               )}
+
+            {/* Temporary diagnostic readout */}
+            {photoUrl && (
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: 8,
+                  left: 8,
+                  font: "11px ui-monospace, monospace",
+                  opacity: 0.65,
+                  color: "#E8A33D",
+                  pointerEvents: "none",
+                }}
+              >
+                {modelState}/{segmentState}
+                {maskPayload
+                  ? ` · ${maskPayload.width}×${maskPayload.height} · ${maskPayload.opaque}px`
+                  : ""}
+              </div>
+            )}
 
             {/* No-photo-yet + model ready */}
             {modelState !== "loading" &&

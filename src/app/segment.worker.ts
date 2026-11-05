@@ -209,6 +209,7 @@ async function decode(pointX: number, pointY: number): Promise<void> {
     const raw = maskTensor.data as unknown as Float32Array | Uint8Array;
 
     const rgba = new Uint8ClampedArray(width * height * 4);
+    let opaque = 0;
     for (let i = 0; i < width * height; i++) {
       const value = raw[bestIndex * width * height + i];
       if (value > 0.5) {
@@ -217,13 +218,14 @@ async function decode(pointX: number, pointY: number): Promise<void> {
         rgba[base + 1] = 255;
         rgba[base + 2] = 255;
         rgba[base + 3] = 255;
+        opaque++;
       }
     }
     void maskCount;
 
     // Transfer the buffer zero-copy via structured clone with transfer list
     self.postMessage(
-      { type: "mask", maskData: rgba, width, height },
+      { type: "mask", maskData: rgba, width, height, opaque },
       { transfer: [rgba.buffer] },
     );
   } catch (err) {
