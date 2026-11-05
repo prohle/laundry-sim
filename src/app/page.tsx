@@ -10,7 +10,6 @@ export default function Home() {
       const file = e.target.files?.[0];
       if (!file) return;
 
-      // Revoke the previous object URL to avoid memory leaks
       if (photoUrl) {
         URL.revokeObjectURL(photoUrl);
       }
@@ -21,39 +20,70 @@ export default function Home() {
   );
 
   return (
-    <main>
-      <h1>Fold</h1>
+    <div className="app-shell">
+      {/* Top bar */}
+      <header className="top-bar">
+        <span className="top-bar__wordmark">
+          Fold<span>.</span>
+        </span>
+        <span className="top-bar__status">Photo to crease pattern</span>
+      </header>
 
-      <div className="upload-area">
-        <label htmlFor="photo-input">Photograph an object (mug, bottle, box)</label>
-        <input
-          id="photo-input"
-          type="file"
-          accept="image/*"
-          onChange={handleFileChange}
-        />
+      {/* Upload row */}
+      <div className="upload-row">
+        <label className="upload-label" htmlFor="photo-input">
+          <input
+            className="upload-input"
+            id="photo-input"
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+          />
+          Load photo
+        </label>
+        <span className="upload-hint">Mug, bottle, or box</span>
       </div>
 
-      <div className="panels">
-        <div className="panel">
-          <span className="panel-label">photo</span>
-          <div className={`panel-box${photoUrl ? "" : " empty"}`}>
+      {/* Two-panel split */}
+      <div className="panel-split">
+        {/* Photo panel */}
+        <div className="panel-col">
+          <div className="panel-header">
+            <span className="panel-header__label">Photo</span>
+            {photoUrl && (
+              <span className="panel-header__badge">1 image</span>
+            )}
+          </div>
+          <div className="panel-canvas">
             {photoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={photoUrl} alt="Uploaded photo" />
             ) : (
-              "No photo yet"
+              <div className="empty-state">
+                <div className="empty-state__cross" aria-hidden="true" />
+                <span className="empty-state__text">No photo loaded</span>
+              </div>
             )}
           </div>
         </div>
 
-        <div className="panel">
-          <span className="panel-label">mask</span>
-          <div className="panel-box empty">
+        {/* Divider */}
+        <div className="panel-split__divider" aria-hidden="true" />
+
+        {/* Mask panel */}
+        <div className="panel-col">
+          <div className="panel-header">
+            <span className="panel-header__label">Mask</span>
+          </div>
+          <div className="panel-canvas">
             {/* mask will appear here in task 1.3 */}
+            <div className="empty-state">
+              <div className="empty-state__cross" aria-hidden="true" />
+              <span className="empty-state__text">Pending</span>
+            </div>
           </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }
