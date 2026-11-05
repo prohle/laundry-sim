@@ -17,8 +17,7 @@ half the score is presentation and design — which is winnable by one person wh
 > A photo becomes a fold plan — a program for a sheet. Today a person runs it; next, a machine.
 
 Photograph an object with a clear silhouette, get a crease pattern derived from it, and fold it
-step by step. Category: **Frankenstein**. Target: **1st overall, $30,000**. Full reasoning in
-`docs/strategy.md`, story in `docs/story.md`.
+step by step. Category: **Frankenstein**. Target: **1st overall, $30,000**.
 
 ## Hard constraints (from the official rules)
 
@@ -60,12 +59,15 @@ the history.
 
 ```
 README.md            this file
-docs/rules.md        verified rules digest
-docs/strategy.md     rubric mapping, category choice, concept options
-docs/plan.md         30-day schedule
-SUBMISSION.md        submission checklist
-.kiro/               steering + specs (required by the rules)
+LICENSE              MIT
+.kiro/specs/         requirements, design, tasks (required by the rules)
+.kiro/steering/      product voice and claims discipline (required by the rules)
+src/                 application code
+_local/              gitignored — strategy, plan, story, checklists
 ```
+
+`_local/` never ships. Everything in it is working material: the pitch, the schedule, the video
+script, the submission checklist.
 
 ## Next actions
 

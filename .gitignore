@@ -16,3 +16,6 @@ coverage/
 .DS_Store
 .vscode/
 .idea/
+
+# Local-only: strategy, plans, scripts, checklists. Never published.
+_local/
