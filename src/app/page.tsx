@@ -137,6 +137,12 @@ export default function Home() {
 
   return (
     <div className="app-shell">
+      {stage === "cutting" && (
+        <div className="progress-bar" aria-hidden="true">
+          <div className="progress-bar__fill" />
+        </div>
+      )}
+
       <header className="top-bar">
         <span className="top-bar__wordmark">
           Fold<span>.</span>
@@ -256,7 +262,19 @@ export default function Home() {
           )}
 
           <div className="panel-canvas" aria-label="Crease pattern output">
-            {cutoutUrl && view === "pattern" ? (
+            {stage === "cutting" ? (
+              <div className="processing-overlay">
+                <div
+                  className="processing-spinner"
+                  role="status"
+                  aria-label="Processing photo"
+                />
+                <span className="processing-label">Removing background</span>
+                <span className="processing-sub">
+                  First run downloads the model once — this can take a minute
+                </span>
+              </div>
+            ) : cutoutUrl && view === "pattern" ? (
               <canvas
                 ref={patternCanvasRef}
                 style={{ width: "100%", height: "100%", objectFit: "contain" }}

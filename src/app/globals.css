@@ -487,3 +487,72 @@ body {
   margin-left: auto;
   font-style: italic;
 }
+
+/* ── Processing feedback ─────────────────────────────────────────────── */
+
+@keyframes fold-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fold-indeterminate {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+.progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  overflow: hidden;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.progress-bar__fill {
+  width: 25%;
+  height: 100%;
+  background: #E8A33D;
+  animation: fold-indeterminate 1.15s ease-in-out infinite;
+}
+
+.processing-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: rgba(11, 11, 12, 0.55);
+}
+
+.processing-spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid rgba(255, 255, 255, 0.14);
+  border-top-color: #E8A33D;
+  border-radius: 50%;
+  animation: fold-spin 900ms linear infinite;
+}
+
+.processing-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(242, 240, 235, 0.65);
+}
+
+.processing-sub {
+  font-size: 11px;
+  color: rgba(242, 240, 235, 0.4);
+  max-width: 30ch;
+  text-align: center;
+  line-height: 1.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .processing-spinner,
+  .progress-bar__fill { animation-duration: 3s; }
+}
