@@ -36,6 +36,9 @@ Out: arbitrary origami design, wet folding, curved creases, robot execution (Jan
 - R3.1 The plan renders as an ordered sequence of steps with a diagram and one sentence each.
 - R3.2 The step text is sufficient without the diagram.
 - R3.3 The user can step forwards and backwards without losing state.
+- R3.4 The step animation is **generated from the fold plan**. No hand-authored keyframes, no
+  per-pattern design work: a new photograph must produce a new animation automatically.
+- R3.5 A step folds one flap, not one crease. The step count stays human — six to twelve.
 
 ### R4 — Export
 - R4.1 The system exports a printable crease template at a stated paper size.

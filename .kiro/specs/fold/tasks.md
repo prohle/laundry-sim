@@ -37,6 +37,16 @@ Ordered. Each task is small enough to finish in a sitting and leaves the repo ru
 - [ ] 4.4 Forward/back navigation preserving state
 - [ ] 4.5 Printable template with mountain/valley legend
 
+## Phase 4b — Animation, generated (19–22 Nov)
+
+- [ ] 4b.1 Sheet mesh: N×N cells, shared vertices, in Three.js
+- [ ] 4b.2 Apply one operation: rotate a cell group around a hinge axis
+- [ ] 4b.3 Group operations into steps by flap (connected component)
+- [ ] 4b.4 Animate θ over time; play, pause, scrub, step forward/back
+- [ ] 4b.5 Highlight the active hinge; tint the moving flap
+- [ ] 4b.6 Golden test: final mesh equals the geometry computed directly from the plan
+- [ ] 4b.7 Fallback check on 20 Nov: if 3D slips, ship 2D SVG diagrams per step
+
 ## Phase 5 — Prove it (20–22 Nov)
 
 - [ ] 5.1 Print the template for one fixture image

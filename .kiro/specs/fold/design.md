@@ -88,6 +88,55 @@ reverse and asserting the sheet returns to flat within tolerance.
 - Printable template: greyscale, solid = valley, dashed = mountain, plus a legend.
 - A "start over" control that resets to step 1 without re-uploading.
 
+## Animation — generated, never authored
+
+The animation is a pure function of the plan:
+
+```
+render(plan, step, t) → sheet state
+```
+
+No keyframes, no hand-made timelines. A new photograph produces a new animation with no designer
+in the loop.
+
+### Model
+
+- **Sheet** — an N×N grid of cells, each with a 3D transform.
+- **Operation** — rotate a *cell group* around a *hinge axis* by angle θ.
+- **Step** — one or more operations applied together (one flap).
+- **Animation** — interpolate θ from 0 to its target over a duration, applied cumulatively.
+
+### Grouping
+
+Operations are grouped into steps by flap: the connected component of cells on one side of the
+hinge, bounded by previously folded creases. A step folds exactly one flap. This keeps the step
+count human — six to twelve, not one hundred.
+
+### Rendering
+
+- Three.js mesh; each cell is two triangles sharing vertices with its neighbours.
+- Hinge axis computed from the two hinge points in sheet space, transformed to world space.
+- Fixed isometric camera, optional orbit. The camera never moves during a step.
+- Active hinge drawn as a highlighted line; the moving flap gets a slightly warmer tint.
+
+### Controls
+
+- play / pause, scrub, step forward, step back
+- speed (0.5×, 1×, 2×)
+- "show crease pattern" toggle
+
+### Invariants (testable)
+
+- At the end of the last step, the mesh matches the geometry computed directly from the plan.
+- Scrubbing backwards returns to flat within tolerance.
+- Step count equals the number of flaps, not the number of creases.
+- Frame time under 16 ms at N=16 on a laptop.
+
+### Fallback
+
+If the 3D renderer slips past 20 November, ship a 2D SVG diagram per step instead — a top-down
+projection with the moving flap shaded. Less impressive, still followable, and it satisfies R3.
+
 ## Failure states
 
 | Condition | Behaviour |
