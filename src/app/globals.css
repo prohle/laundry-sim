@@ -220,11 +220,43 @@ body {
   justify-content: center;
   overflow: hidden;
   min-height: 320px;
-  transition: border-color var(--transition);
+  transition: border-color var(--transition), background var(--transition);
+  position: relative;
 }
 
 .panel-canvas:hover {
   border-color: rgba(255, 255, 255, 0.14);
+}
+
+/* Upload-capable photo panel */
+.panel-canvas--upload {
+  cursor: pointer;
+}
+
+.panel-canvas--upload:hover,
+.panel-canvas--upload:focus-visible {
+  border-color: rgba(232, 163, 61, 0.5);
+  outline: none;
+}
+
+/* Drag-over state */
+.panel-canvas--dragging {
+  border-color: var(--color-accent) !important;
+  background: #181610;
+}
+
+/* Inline error message overlaid at bottom of panel */
+.panel-canvas__error {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--color-accent);
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
 }
 
 .panel-canvas img {

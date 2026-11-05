@@ -19,3 +19,6 @@ coverage/
 
 # Local-only: strategy, plans, scripts, checklists. Never published.
 _local/
+
+# SQLite database written at runtime — never commit
+data/
