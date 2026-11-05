@@ -45,6 +45,7 @@ export default function Home() {
   const workerRef = useRef<Worker | null>(null);
   const [modelState, setModelState] = useState<ModelState>("idle");
   const [segmentState, setSegmentState] = useState<SegmentState>("idle");
+  const [errorText, setErrorText] = useState<string | null>(null);
 
   // ── Mask canvas state ────────────────────────────────────────────────────
   // imageData payload from the last successful mask decode
@@ -82,6 +83,7 @@ export default function Home() {
           break;
         case "model-error":
           setModelState("error");
+          setErrorText(msg.message);
           break;
         case "encoding":
           setSegmentState("encoding");
@@ -100,6 +102,7 @@ export default function Home() {
           break;
         case "error":
           setSegmentState("error");
+          setErrorText(msg.message);
           break;
       }
     });
@@ -484,6 +487,9 @@ export default function Home() {
                 >
                   Segmentation unavailable
                 </span>
+                {errorText && (
+                  <span className="segment-overlay__sub">{errorText}</span>
+                )}
               </div>
             )}
 

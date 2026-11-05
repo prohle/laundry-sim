@@ -199,28 +199,27 @@ async function decode(pointX: number, pointY: number): Promise<void> {
       if (scores[i] > scores[bestIndex]) bestIndex = i;
     }
 
-    // masks[0] is the result for the first (and only) image in the batch.
-    // RawImage.fromTensor will pick the first channel; we pass the full tensor
-    // and extract our chosen mask index from the raw data manually.
-    const maskTensor = masks[0]; // shape: [numMasks, H, W]
-    const maskImage = RawImage.fromTensor(maskTensor);
-    const { width, height, data: maskData } = maskImage;
+    // masks[0] has shape [numMasks, H, W]. Read the raw tensor directly —
+    // RawImage.fromTensor would convert it to RGBA and scramble the indexing.
+    const maskTensor = masks[0];
+    const dims = maskTensor.dims as number[];
+    const maskCount = dims[0];
+    const height = dims[1];
+    const width = dims[2];
+    const raw = maskTensor.data as unknown as Float32Array | Uint8Array;
 
-    // Build an RGBA pixel buffer where the mask area is opaque
-    // and the background is transparent.
     const rgba = new Uint8ClampedArray(width * height * 4);
     for (let i = 0; i < width * height; i++) {
-      // maskData is laid out as: [mask0_pixel0, mask1_pixel0, ..., mask0_pixel1, ...]
-      // i.e. numMasks values per pixel position.
-      if (maskData[numMasks * i + bestIndex] === 1) {
+      const value = raw[bestIndex * width * height + i];
+      if (value > 0.5) {
         const base = i * 4;
         rgba[base] = 255;
         rgba[base + 1] = 255;
         rgba[base + 2] = 255;
-        rgba[base + 3] = 255; // opaque
+        rgba[base + 3] = 255;
       }
-      // else stays [0,0,0,0] → transparent
     }
+    void maskCount;
 
     // Transfer the buffer zero-copy via structured clone with transfer list
     self.postMessage(
