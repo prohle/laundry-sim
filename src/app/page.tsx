@@ -1,6 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { buildPattern, drawPattern } from "@/lib/crease";
+
+const GRID = 16;
+const LEVELS = 4;
 
 type Stage = "empty" | "cutting" | "done" | "error";
 
@@ -11,6 +15,9 @@ export default function Home() {
   const [errorText, setErrorText] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [typeError, setTypeError] = useState(false);
+  const [view, setView] = useState<"pattern" | "cutout">("pattern");
+  const [creaseCount, setCreaseCount] = useState<number | null>(null);
+  const patternCanvasRef = useRef<HTMLCanvasElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const photoUrlRef = useRef<string | null>(null);
   const cutoutUrlRef = useRef<string | null>(null);
@@ -21,6 +28,27 @@ export default function Home() {
   useEffect(() => {
     cutoutUrlRef.current = cutoutUrl;
   }, [cutoutUrl]);
+
+  // Build the crease pattern from the cutout.
+  useEffect(() => {
+    if (!cutoutUrl || view !== "pattern") return;
+    const img = new Image();
+    img.onload = () => {
+      const off = document.createElement("canvas");
+      off.width = GRID;
+      off.height = GRID;
+      const octx = off.getContext("2d");
+      if (!octx) return;
+      octx.drawImage(img, 0, 0, GRID, GRID);
+      const data = octx.getImageData(0, 0, GRID, GRID).data;
+      const pattern = buildPattern(data, GRID, LEVELS);
+      setCreaseCount(pattern.creases.length);
+      if (patternCanvasRef.current) {
+        drawPattern(patternCanvasRef.current, pattern, 640);
+      }
+    };
+    img.src = cutoutUrl;
+  }, [cutoutUrl, view]);
 
   const loadFile = useCallback(async (file: File) => {
     if (!file.type.startsWith("image/")) {
@@ -182,14 +210,59 @@ export default function Home() {
 
         <div className="panel-col">
           <div className="panel-header">
-            <span className="panel-header__label">Mask</span>
+            <span className="panel-header__label">
+              {view === "pattern" ? "Crease pattern" : "Cutout"}
+            </span>
             {stage === "done" && (
-              <span className="panel-header__badge">cutout ready</span>
+              <span className="panel-header__badge">
+                {view === "pattern" && creaseCount !== null
+                  ? `${creaseCount} creases`
+                  : "ready"}
+              </span>
             )}
           </div>
 
-          <div className="panel-canvas" aria-label="Segmentation output">
-            {cutoutUrl ? (
+          {stage === "done" && (
+            <div className="upload-row" style={{ paddingBottom: 8 }}>
+              <button
+                type="button"
+                className="upload-hint"
+                onClick={() => setView("pattern")}
+                style={{
+                  opacity: view === "pattern" ? 1 : 0.45,
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: 0,
+                }}
+              >
+                Pattern
+              </button>
+              <button
+                type="button"
+                className="upload-hint"
+                onClick={() => setView("cutout")}
+                style={{
+                  opacity: view === "cutout" ? 1 : 0.45,
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: 0,
+                }}
+              >
+                Cutout
+              </button>
+            </div>
+          )}
+
+          <div className="panel-canvas" aria-label="Crease pattern output">
+            {cutoutUrl && view === "pattern" ? (
+              <canvas
+                ref={patternCanvasRef}
+                style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                aria-label="Generated crease pattern"
+              />
+            ) : cutoutUrl && view === "cutout" ? (
               <div className="cutout-wrapper checkerboard">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={cutoutUrl} alt="Segmented object cutout" />
