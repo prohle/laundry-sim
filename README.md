@@ -59,7 +59,7 @@ the history.
 
 ```
 README.md            this file
-LICENSE              MIT
+LICENSE              AGPL-3.0
 .kiro/specs/         requirements, design, tasks (required by the rules)
 .kiro/steering/      product voice and claims discipline (required by the rules)
 src/                 application code
@@ -75,7 +75,7 @@ script, the submission checklist.
    `requirements.md`, `design.md`, `tasks.md`. Read it, then start task 1.1.
 2. Install Kiro, request the 4,000 credits (closes 1 December, 12:00 pm PT), join
    `#kiroween-hackathon` on Discord.
-3. Create the public GitHub repo: MIT license, About section, `/.kiro/` at root.
+3. Create the public GitHub repo: AGPL-3.0 license, About section, `/.kiro/` at root.
 4. Get segmentation working on three object photos. Nothing else matters until the silhouette is
    clean.
 5. Pick the constrained family — grid relief recommended — and write it down before coding.
