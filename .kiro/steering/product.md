@@ -15,21 +15,22 @@ transformation with whatever is on the desk. Not hobbyist origami artists — th
 ## The problem, in one sentence
 
 Spatial reasoning predicts STEM achievement and is barely taught, because the cheap way to teach it
-— folding paper — requires diagram literacy that most students do not have.
+— folding paper — requires diagram literacy most students do not have.
 
 ## What it must never do
 
 - Never claim "any object". The supported class is stated on screen.
 - Never present a library lookup as generation. If a pattern came from a template family, say so.
 - Never show a robot folding. The machine renderer does not exist until January.
-- Never claim the output is a faithful origami model when it is a relief or an abstraction.
+- Never claim material generality — no aerospace, no medical, no sheet metal.
+- Never call the output a faithful model when it is a relief or an abstraction.
 
 ## What good looks like
 
 A teacher photographs a mug. The app draws a crease pattern. A student folds it in six steps and
-holds up something that is recognisably a mug. The lesson takes eight minutes.
+holds up something recognisably a mug. The lesson takes eight minutes.
 
 ## Voice
 
-Plain, specific, unhurried. "Six folds, about four minutes." No exclamation marks, no "unleash
-your creativity". The tone of a good worksheet, not a startup landing page.
+Plain, specific, unhurried. "Six folds, about four minutes." No exclamation marks, no "unleash your
+creativity". The tone of a good worksheet, not a startup landing page.
