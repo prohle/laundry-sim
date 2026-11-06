@@ -35,7 +35,7 @@
       },
       {
         "capability": "fs_write",
-        "match": ["./src/**", "./.kiro/**"],
+        "match": ["./src/**", "./.kiro/**", "./package.json", "./package-lock.json"],
         "effect": "allow"
       }
     ]

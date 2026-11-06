@@ -59,16 +59,36 @@ Candidates, in order of fit for a browser product:
 
 | Candidate | Language | Fit | Risk |
 |---|---|---|---|
-| **TreeFaker** (MIT 6.849) | JS/Vue, browser | runs client-side, no backend | student project, parity unknown |
-| **treemaker-core** | Rust + WASM | headless API, has flat-fold and sequence crates | young port, no CFSQP/RFSQP, needs a Rust toolchain |
-| **TreeMaker 5 source** | C++ (GPL) | the reference implementation | `g++` and `make` are available; not browser-native |
+| **treemaker-core** 0.1.0 (chosen) | Rust + WASM | headless API; GPL-2.0-or-later; 5 of 5 shipped `.tmd5` examples converged and reported feasible, 4 of 5 built a crease pattern, 0–7 ms per model | 1 of 5 failed: `invalid operation: polygon inset distance was not found`; input is `.tmd5` text only |
+| **TreeMaker 5 source** | C++ (GPL) | the reference implementation; fallback | `g++` and `make` are available; not browser-native |
+| **TreeFaker** (MIT 6.849) | JS/Vue, browser | engine ran headlessly; fiveStar and bone solved in ~150 ms | no licence, cannot be vendored; crab tree failed with `twisted`; all creases `Unknown` |
 | **box-pleating**, **pleat** | Python | verification, FOLD I/O, flat-foldability ILP | not a tree solver |
 
-**Local toolchain, verified 2026-11-06:** `node` 24, `npm` 11, `python3`, `g++`, `make` present.
-**No `cargo` or `rustup`.** Network access to GitHub works.
+**Local toolchain:** `node` 24, `npm` 11, `python3`, `g++`, `make` verified 2026-11-06. Rust
+installed 2026-11-06; treemaker-core 0.1.0 built with cargo 1.99.1. Network access to GitHub works.
 
-So the order is TreeFaker → C++ reference → Rust port. The C++ path is the fallback if TreeFaker's
-parity is poor, and `g++` is already there.
+**Evaluation result.** treemaker-core was run against the five example models in the TreeMaker 5
+C++ source (`Source/test/tmModelTester/*.tmd5`). All five converged and reported feasible. Four
+built a crease pattern; one failed with `invalid operation: polygon inset distance was not found`.
+Runtime was 0 to 7 ms per model. The API is `Tree::from_tmd_str`, `optimize_scale`,
+`optimize_edges`, `optimize_strain`, `build_polys_and_crease_pattern`, `to_tmd5_string`,
+`cp_status` and `summary`. This is not yet a parity result: no crease pattern has been diffed
+against a published reference (tasks 1.3 and 1.4).
+
+**Input format.** There is no programmatic tree constructor. The only input is TreeMaker's
+`.tmd5` text format, so a tree-to-`.tmd5` serialiser is required (task 1.9).
+
+The chosen solver is treemaker-core. The C++ reference remains the fallback.
+
+### Licensing, verified 2026-11-06
+
+- **TreeFaker** (6849-2020/treefaker) has no licence: GitHub reports NONE, there is no LICENSE
+  file and no licence field. It cannot be vendored or copied.
+- **TreeMaker 5** C++ source is GPL-2.0-or-later.
+- **treemaker-core** is GPL-2.0-or-later.
+- **BP Studio** is MIT.
+
+This repo is AGPL-3.0. It can absorb GPL-2.0-or-later code but not unlicensed code.
 
 ### Parity gate
 

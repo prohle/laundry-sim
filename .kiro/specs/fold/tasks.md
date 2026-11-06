@@ -23,6 +23,15 @@ Ordered. Each task leaves the repo runnable. Gates are kill criteria, not remind
       - Every crease comes back with assignment `Unknown`: mountain/valley is not computed.
 - [ ] 1.6 Investigate the crab tree failure (`twisted` after 6 attempts): cause and whether it
       is fixable or needs the TreeMaker 5 fallback (1.2)
+- [x] 1.7 Remove the unlicensed vendoring (TreeFaker has no licence) — done
+- [x] 1.8 Evaluate treemaker-core as the licensed solver
+      - treemaker-core 0.1.0, GPL-2.0-or-later, cargo 1.99.1.
+      - Five TreeMaker 5 example `.tmd5` models: all converged and feasible; four built a crease
+        pattern; one failed with `invalid operation: polygon inset distance was not found`.
+      - 0 to 7 ms per model.
+      - No programmatic tree constructor; input is `.tmd5` text only.
+- [ ] 1.9 Tree-to-`.tmd5` serialiser: write a Fold tree as TreeMaker's `.tmd5` text so
+      `Tree::from_tmd_str` can read it
 
 **Gate, 10 Nov:** parity on at least two of three. Fail → box-pleating only, and the claim narrows
 to "box-pleated animals".
