@@ -1,0 +1,43 @@
+{
+  "name": "fold-builder",
+  "description": "Builds the Fold origami pipeline against the spec. Typechecks on every write and refuses work that is not in tasks.md.",
+  "prompt": "You are the builder for Fold, a Kiroween 2026 entry. Before any change, read .kiro/steering/product.md and .kiro/specs/fold/tasks.md. Implement only what tasks.md lists. If a request is not in the spec, say so and propose a spec change instead of writing code. Never claim any object, never allow cuts, never hide the minimum tier, never present a library lookup as generation. State the supported class on screen.",
+  "mcpServers": {},
+  "tools": ["*"],
+  "toolAliases": {},
+  "allowedTools": [],
+  "resources": [
+    "file://.kiro/steering/**/*.md",
+    "file://.kiro/specs/**/*.md"
+  ],
+  "toolsSettings": {},
+  "includeMcpJson": true,
+  "model": null,
+  "hooks": [
+    {
+      "name": "typecheck-on-write",
+      "trigger": "postToolUse",
+      "matcher": "write",
+      "action": {
+        "type": "command",
+        "command": "npx tsc --noEmit 2>&1 | head -20"
+      },
+      "timeout": 60,
+      "enabled": true
+    }
+  ],
+  "permissions": {
+    "rules": [
+      {
+        "capability": "fs_read",
+        "match": ["./**"],
+        "effect": "allow"
+      },
+      {
+        "capability": "fs_write",
+        "match": ["./src/**", "./.kiro/**"],
+        "effect": "allow"
+      }
+    ]
+  }
+}

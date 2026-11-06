@@ -10,12 +10,19 @@ Ordered. Each task leaves the repo runnable. Gates are kill criteria, not remind
 
 ## Phase 1 — Solver parity (7–10 Nov)
 
-- [ ] 1.1 Evaluate TreeFaker: does it solve a known tree and emit a crease pattern?
+- [x] 1.1 Evaluate TreeFaker: does it solve a known tree and emit a crease pattern?
 - [ ] 1.2 Fallback: build TreeMaker 5 from source with `g++` and `make`
 - [ ] 1.3 Pick three reference models with published crease patterns (crane, one `.tmd5`
       example, one four-legged animal)
 - [ ] 1.4 Reproduce each; diff vertices and edges against the reference
-- [ ] 1.5 Write down the parity result, pass or fail, with the numbers
+- [x] 1.5 Write down the parity result, pass or fail, with the numbers
+      - TreeFaker's engine runs headlessly when bundled with esbuild.
+      - The fiveStar and bone trees each solve in about 150 ms and export FOLD.
+      - The crab tree from tests/helper (a Jason Ku four-legged design) fails with `twisted`
+        after 6 attempts.
+      - Every crease comes back with assignment `Unknown`: mountain/valley is not computed.
+- [ ] 1.6 Investigate the crab tree failure (`twisted` after 6 attempts): cause and whether it
+      is fixable or needs the TreeMaker 5 fallback (1.2)
 
 **Gate, 10 Nov:** parity on at least two of three. Fail → box-pleating only, and the claim narrows
 to "box-pleated animals".
