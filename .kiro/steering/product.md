@@ -1,40 +1,46 @@
-# Product steering — Stratum
+# Product steering — Fold
 
-> Status: locked 2026-11-06 after the pivot from Fold. Kiro reads this file on every task.
+> Status: locked 2026-11-06, third and final direction for Kiroween 2026. Kiro reads this file on
+> every task.
 
 ## What this is
 
-A generator that turns four photographs of an object into a stack of flat cut layers, plus a
-measurement of how much fidelity the fabrication constraints cost.
+A generator that turns a photograph of an object into an origami crease pattern, at a complexity
+the user chooses.
+
+## The chimera
+
+A camera (2026), tree theory (1970s), TreeMaker (2006, abandoned), and a sheet of paper. The paper
+becomes the photograph. Category: **Frankenstein**.
 
 ## Who it is for
 
-A maker with a laser cutter or a knife, who wants a physical model of a real object. Secondarily,
-a secondary-school maths teacher teaching projection and cross-sections with something students
-can hold.
+A secondary-school maths or science teacher with no design skill and twenty minutes to prepare,
+and a hobbyist who folds well but cannot design and will spend two hours on a hard model. The
+complexity ladder is what lets one pipeline serve both.
 
 ## The problem, in one sentence
 
-Photogrammetry needs dozens of photos and a cloud; a maker needs a model from the four photos they
-already have, and needs to know which details the process will lose before they cut material.
+Origami is the cheapest physical model there is, and it is gated behind years of design study;
+a teacher can print a worksheet in a minute and cannot design a foldable animal in a minute.
 
 ## What it must never do
 
-- Never claim general 3D reconstruction. The supported class is stated on screen.
-- Never claim "any object". Silhouettes cannot see concavities; layers cannot see undercuts.
-- Never present a reconstruction as faithful without its IoU numbers beside it.
-- Never hide the capture protocol. Four views, 90° apart, upright, light fixed.
-- Never claim material generality beyond the stated card and plywood thicknesses.
-- Never ship a model whose layers are not connected after bridging.
+- Never claim "any object". The supported class is four to twelve flaps, objects with limbs.
+- Never allow cuts. Cutting is kirigami and it breaks the solver's assumption of one square.
+- Never present a library lookup as generation.
+- Never hide the minimum tier. If a subject needs eight flaps, say so before the user prints.
+- Never print a pattern without a valid mountain/valley assignment or an explicit collapse.
+- Never claim a faithful replica. A folded animal is an abstraction, and that is the art.
+- Never show a robot folding. That renderer does not exist until January.
 
 ## What good looks like
 
-A maker photographs a bottle from four sides. The app shows the model, the per-view IoU, and a
-stack of twelve layers. They cut it, stack it on a rod, and set it on the desk beside the bottle.
-From each of the four directions, the silhouette matches the photo they took. The whole thing
-takes twenty minutes.
+A teacher photographs a beetle on her desk. The app puts a stick figure over it, tells her four
+flaps cannot make six legs, and offers Hard. She prints it, folds for an hour, and sets a paper
+beetle next to the photograph. The legs are where the legs are.
 
 ## Voice
 
-Plain, specific, unhurried. "Twelve layers, 3 mm ply, about twenty minutes." No exclamation marks,
-no "unleash your creativity". The tone of a good workshop manual, not a startup landing page.
+Plain, specific, unhurried. "Six flaps, forty minutes, 80 gsm." No exclamation marks, no "unleash
+your creativity". The tone of a good instruction sheet, not a startup landing page.

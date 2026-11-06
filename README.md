@@ -14,10 +14,13 @@ half the score is presentation and design — which is winnable by one person wh
 
 ## The one-sentence brief
 
-> A photo becomes a fold plan — a program for a sheet. Today a person runs it; next, a machine.
+> A photograph becomes a foldable crease pattern, at the complexity you choose.
 
-Photograph an object with a clear silhouette, get a crease pattern derived from it, and fold it
-step by step. Category: **Frankenstein**. Target: **1st overall, $30,000**.
+A camera, a 1970s graph theory, a solver abandoned in 2006, and a sheet of paper. The paper
+becomes the photograph. Category: **Frankenstein**. Target: **1st overall, $30,000**.
+
+Four tiers — Easy to Expert — with the minimum complexity computed for the subject. The spec is
+in `.kiro/specs/fold/`; it is the source of truth for what this is.
 
 ## Hard constraints (from the official rules)
 
