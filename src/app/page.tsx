@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { buildPattern, drawPattern } from "@/lib/crease";
+import { buildPattern, drawPattern, type CreasePattern } from "@/lib/crease";
+import Relief3D from "./Relief3D";
 
 const GRID = 16;
 const LEVELS = 4;
@@ -15,8 +16,10 @@ export default function Home() {
   const [errorText, setErrorText] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [typeError, setTypeError] = useState(false);
-  const [view, setView] = useState<"pattern" | "cutout">("pattern");
+  const [view, setView] = useState<"3d" | "pattern" | "cutout">("3d");
   const [creaseCount, setCreaseCount] = useState<number | null>(null);
+  const [pattern, setPattern] = useState<CreasePattern | null>(null);
+  const [foldProgress, setFoldProgress] = useState(0);
   const patternCanvasRef = useRef<HTMLCanvasElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const photoUrlRef = useRef<string | null>(null);
@@ -43,12 +46,29 @@ export default function Home() {
       const data = octx.getImageData(0, 0, GRID, GRID).data;
       const pattern = buildPattern(data, GRID, LEVELS);
       setCreaseCount(pattern.creases.length);
+      setPattern(pattern);
       if (patternCanvasRef.current) {
         drawPattern(patternCanvasRef.current, pattern, 640);
       }
     };
     img.src = cutoutUrl;
   }, [cutoutUrl, view]);
+
+  // Animate the fold when a new pattern arrives.
+  useEffect(() => {
+    if (!pattern) return;
+    setFoldProgress(0);
+    let start: number | null = null;
+    let raf = 0;
+    const step = (t: number) => {
+      if (start === null) start = t;
+      const p = Math.min(1, (t - start) / 1400);
+      setFoldProgress(p);
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [pattern]);
 
   const loadFile = useCallback(async (file: File) => {
     if (!file.type.startsWith("image/")) {
@@ -217,7 +237,11 @@ export default function Home() {
         <div className="panel-col">
           <div className="panel-header">
             <span className="panel-header__label">
-              {view === "pattern" ? "Crease pattern" : "Cutout"}
+              {view === "3d"
+                ? "Folded"
+                : view === "pattern"
+                  ? "Crease pattern"
+                  : "Cutout"}
             </span>
             {stage === "done" && (
               <span className="panel-header__badge">
@@ -230,34 +254,23 @@ export default function Home() {
 
           {stage === "done" && (
             <div className="upload-row" style={{ paddingBottom: 8 }}>
-              <button
-                type="button"
-                className="upload-hint"
-                onClick={() => setView("pattern")}
-                style={{
-                  opacity: view === "pattern" ? 1 : 0.45,
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: 0,
-                }}
-              >
-                Pattern
-              </button>
-              <button
-                type="button"
-                className="upload-hint"
-                onClick={() => setView("cutout")}
-                style={{
-                  opacity: view === "cutout" ? 1 : 0.45,
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: 0,
-                }}
-              >
-                Cutout
-              </button>
+              {(["3d", "pattern", "cutout"] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  className="upload-hint"
+                  onClick={() => setView(v)}
+                  style={{
+                    opacity: view === v ? 1 : 0.45,
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: 0,
+                  }}
+                >
+                  {v === "3d" ? "3D" : v === "pattern" ? "Pattern" : "Cutout"}
+                </button>
+              ))}
             </div>
           )}
 
@@ -273,6 +286,49 @@ export default function Home() {
                 <span className="processing-sub">
                   First run downloads the model once — this can take a minute
                 </span>
+              </div>
+            ) : pattern && view === "3d" ? (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                <div style={{ flex: 1, minHeight: 0 }}>
+                  <Relief3D pattern={pattern} progress={foldProgress} />
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "10px 14px",
+                    borderTop: "1px solid rgba(255,255,255,0.08)",
+                  }}
+                >
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={foldProgress}
+                    onChange={(e) => setFoldProgress(Number(e.target.value))}
+                    aria-label="Fold progress"
+                    style={{ flex: 1, accentColor: "#E8A33D" }}
+                  />
+                  <span
+                    style={{
+                      font: "11px ui-monospace, monospace",
+                      color: "rgba(242,240,235,0.6)",
+                      minWidth: "3ch",
+                      textAlign: "right",
+                    }}
+                  >
+                    {Math.round(foldProgress * 100)}%
+                  </span>
+                </div>
               </div>
             ) : cutoutUrl && view === "pattern" ? (
               <canvas

@@ -23,6 +23,7 @@ export interface CreasePattern {
   n: number;
   levels: number;
   heights: number[][];
+  solid: boolean[][];
   creases: Crease[];
 }
 
@@ -33,9 +34,11 @@ export function buildPattern(
   levels = 4,
 ): CreasePattern {
   const heights: number[][] = [];
+  const solid: boolean[][] = [];
 
   for (let y = 0; y < n; y++) {
     const row: number[] = [];
+    const srow: boolean[] = [];
     for (let x = 0; x < n; x++) {
       const i = (y * n + x) * 4;
       const r = pixels[i];
@@ -51,8 +54,10 @@ export function buildPattern(
       // collapsing the relief to a rectangle.
       const edge = Math.min(x, y, n - 1 - x, n - 1 - y) / (n / 2);
       row.push(0.75 * height + 0.25 * Math.min(1, edge));
+      srow.push(a > 0.5);
     }
     heights.push(row);
+    solid.push(srow);
   }
 
   // Normalise to [0,1] across the grid.
@@ -101,7 +106,7 @@ export function buildPattern(
     }
   }
 
-  return { n, levels, heights, creases };
+  return { n, levels, heights, solid, creases };
 }
 
 /** Draw the pattern onto a square canvas. */
