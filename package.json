@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --test src/lib/skeleton.test.ts src/lib/skeleton.photo.test.ts src/lib/tiers.test.ts src/lib/select.test.ts src/lib/contract.test.ts src/lib/flatfold.test.ts src/lib/properties.test.ts src/lib/pipeline.timeout.test.ts src/lib/refusals.test.ts src/lib/edited-tree.test.ts src/lib/tree-edit.test.ts src/lib/collapse.test.ts src/lib/steps.test.ts src/lib/segment.test.ts src/lib/views.test.ts src/lib/budget.test.ts src/lib/ladder.test.ts src/lib/parts.test.ts src/lib/multisheet.test.ts src/lib/net.test.ts tools/cp-to-svg.test.ts tools/fold.test.ts",
+    "test": "node --test src/lib/skeleton.test.ts src/lib/skeleton.photo.test.ts src/lib/tiers.test.ts src/lib/select.test.ts src/lib/contract.test.ts src/lib/flatfold.test.ts src/lib/properties.test.ts src/lib/pipeline.timeout.test.ts src/lib/refusals.test.ts src/lib/edited-tree.test.ts src/lib/tree-edit.test.ts src/lib/collapse.test.ts src/lib/steps.test.ts src/lib/segment.test.ts src/lib/views.test.ts src/lib/budget.test.ts src/lib/ladder.test.ts src/lib/parts.test.ts src/lib/multisheet.test.ts src/lib/net.test.ts src/lib/hull.test.ts tools/cp-to-svg.test.ts tools/fold.test.ts",
     "check": "tools/check.sh"
   },
   "dependencies": {

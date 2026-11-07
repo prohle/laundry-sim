@@ -539,7 +539,17 @@ Spec change, 2026-11-07 (user request, option 1 approved). R9; design "Hollow mo
       - Rendered both in headless Chromium and looked at them: cut solid, fold dashed, tabs numbered with the matching
         edge numbered, legend with paper size, face count, tab count, scale. The text says "cut, fold, glue" and never
         "origami" (tested).
-- [ ] 9.3 Visual hull from 2 to 4 silhouettes
+- [x] 9.3 Visual hull from 2 to 4 silhouettes (`src/lib/hull.ts`; voxel grid only, no mesh, no UI)
+      - Orthographic, u = x cos t + z sin t, v = y; voxel occupied when its centre is inside every mask. Alignment rule:
+        all masks share v bounds (1e-3 mm) and have square pixels (2%); u bounds and pixel size may differ. Refusals:
+        <2 or >4 views, views along one line, misaligned masks, bad grid, empty hull. `src/lib/hull.test.ts`, 12 tests.
+      - Observed, 64^3 at 1 mm, masks 240x240: 3.5-3.8 ms for 4 views. Sphere r=24 (true 57906 mm^3): 2 views +29.97%,
+        4 views +7.28%, 0 true voxels missed in both. Box 40x50x30: 0.00% at 2 and at 4 views.
+      - The requested ceiling of 1.05 x true volume for 4 views is below the continuous limit: octagon/circle =
+        1.0548 (4 views at 45 degrees). Measured 1.0728; the test allows 3% over the analytic limit instead.
+      - Mug (cylinder r 24, notch x > 8, |z| < 7, full height): the hull fills 8400 of 8800 notch voxels (95.45%) at 2
+        and at 4 views; the other 400 lie beyond the mug's own silhouette. A bite is never visible in any silhouette.
+      - Not done: a through-hole viewed along its axis is carved by that view, not tested; real photographs not used.
 - [ ] 9.4 Closed mesh from the hull, coarse enough to cut by hand
 - [ ] 9.5 Screen: a Fold / Hollow switch, with Hollow showing the net and assembly
 
