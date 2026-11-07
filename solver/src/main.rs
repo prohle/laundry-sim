@@ -332,7 +332,7 @@ pub fn tree_to_tmd(tree: &TreeIn) -> Result<String, String> {
 
 /// Parse, optimise the scale, and build the crease pattern.
 pub fn solve(tree: &TreeIn) -> Report {
-    let mut report = Report { ok: false, converged: false, feasible: false, scale: 0.0, error: None, cp_status: None, cp_built: false, facet_colors: None, cp: None };
+    let report = Report { ok: false, converged: false, feasible: false, scale: 0.0, error: None, cp_status: None, cp_built: false, facet_colors: None, cp: None };
     let fail = |mut r: Report, msg: String| {
         r.error = Some(msg);
         r
@@ -347,9 +347,29 @@ pub fn solve(tree: &TreeIn) -> Report {
         Ok(t) => t.to_tmd5_string(),
         Err(e) => return fail(report, format!("parse: {e}")),
     };
-    let mut t = match Tree::from_tmd_str(&tmd5) {
+    let t = match Tree::from_tmd_str(&tmd5) {
         Ok(t) => t,
         Err(e) => return fail(report, format!("parse v5: {e}")),
+    };
+    solve_parsed(t)
+}
+
+/// Control-experiment entry (spec change, 2026-11-06): run the same optimise, build and
+/// export steps on TreeMaker's own `.tmd5` text, bypassing the photograph, the tree
+/// extraction and the serialiser.
+pub fn solve_tmd5(text: &str) -> Report {
+    match Tree::from_tmd_str(text) {
+        Ok(t) => solve_parsed(t),
+        Err(e) => Report { ok: false, converged: false, feasible: false, scale: 0.0, error: Some(format!("parse: {e}")), cp_status: None, cp_built: false, facet_colors: None, cp: None },
+    }
+}
+
+/// Optimise the scale, build the crease pattern, export it. Shared by `solve` and `solve_tmd5`.
+fn solve_parsed(mut t: Tree) -> Report {
+    let mut report = Report { ok: false, converged: false, feasible: false, scale: 0.0, error: None, cp_status: None, cp_built: false, facet_colors: None, cp: None };
+    let fail = |mut r: Report, msg: String| {
+        r.error = Some(msg);
+        r
     };
     match t.optimize_scale() {
         Ok(r) => {
@@ -382,6 +402,17 @@ pub fn solve(tree: &TreeIn) -> Report {
 }
 
 fn main() {
+    // `fold-solver --tmd5 <file>`: solve a TreeMaker model directly (control experiment).
+    let args: Vec<String> = std::env::args().collect();
+    if args.get(1).map(String::as_str) == Some("--tmd5") {
+        let report = match args.get(2).map(std::fs::read_to_string) {
+            None => Report { ok: false, converged: false, feasible: false, scale: 0.0, error: Some("usage: fold-solver --tmd5 <file>".into()), cp_status: None, cp_built: false, facet_colors: None, cp: None },
+            Some(Err(e)) => Report { ok: false, converged: false, feasible: false, scale: 0.0, error: Some(format!("read: {e}")), cp_status: None, cp_built: false, facet_colors: None, cp: None },
+            Some(Ok(text)) => solve_tmd5(&text),
+        };
+        println!("{}", serde_json::to_string(&report).unwrap());
+        std::process::exit(if report.ok { 0 } else { 1 });
+    }
     let mut input = String::new();
     let report = match std::io::stdin().read_to_string(&mut input) {
         Err(e) => Report { ok: false, converged: false, feasible: false, scale: 0.0, error: Some(format!("stdin: {e}")), cp_status: None, cp_built: false, facet_colors: None, cp: None },
@@ -485,6 +516,16 @@ mod tests {
         let r = solve(&tree_from(&nodes, &edges));
         assert!(r.ok && r.converged && r.feasible);
         assert!(!r.cp_built);
+    }
+
+    #[test]
+    fn tmd5_mode_solves_treemaker_model_5_with_full_cp() {
+        let text = include_str!("../fixtures/tmModelTester_5.tmd5");
+        let r = solve_tmd5(text);
+        assert!(r.ok, "{:?}", r.error);
+        assert!(r.cp_built);
+        assert_eq!(r.cp_status.as_deref(), Some("has_full_cp"));
+        assert_cp_valid(&r);
     }
 
     #[test]

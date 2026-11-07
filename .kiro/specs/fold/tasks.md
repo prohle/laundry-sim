@@ -189,6 +189,14 @@ to "box-pleated animals".
         (M<->V, +180<->-180) run beside the normal one, same settings: `swap-normal.png`,
         `swap-swapped.png`. Both end as a thin, faceted wedge with faces crossing and strain
         everywhere, still moving after 20 s; neither shows limbs. Stopped; no per-crease tuning.
+      - Spec change, 2026-11-06 (user request): control experiment. `fold-solver --tmd5 <file>`
+        runs optimise, build and export on a `.tmd5` directly (test added). Model 5 ->
+        `tools/out/model5.fold.json`, same simulator setup, `tools/out/model5-{0pct,50pct,100pct}.png`.
+        Model 5 as exported: `has_full_cp`, 217 vertices, 434 creases (B 62, F 122, M 99, V 151),
+        218 faces covering 0.999999 of the sheet. Result: loads; at 100% a thin
+        wedge with 6891 piercing face pairs (326 of 370 triangles), no limbs. Model 5 does not fold
+        into a base either, so the fault is in our export or in how the simulator is driven, not in
+        the dog's coverage. Nothing tuned. Physical fold on hold until this is understood.
       - Kawasaki default tolerance is now 2e-5 rad (`src/lib/flatfold.ts`); the largest residual is
         still reported.
 - [ ] 5.4 Printable pattern with legend, paper size, step count, time estimate
