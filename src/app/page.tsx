@@ -130,7 +130,7 @@ export default function Home() {
 
       <main className="screen">
         <p className="supported">
-          Four-legged animals on a plain background. Four to twelve flaps, one square, no cuts.
+          Animals with visible limbs on a plain background. Four to twelve flaps, one square, no cuts.
         </p>
 
         {view.kind === "empty" && (
@@ -138,7 +138,7 @@ export default function Home() {
             className={`panel-canvas panel-canvas--upload dropzone${dragging ? " panel-canvas--dragging" : ""}`}
             role="button"
             tabIndex={0}
-            aria-label="Choose a photograph. Four-legged animals on a plain background."
+            aria-label="Choose a photograph. Animals with visible limbs on a plain background."
             onClick={() => inputRef.current?.click()}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
