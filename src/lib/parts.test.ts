@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { partitionTree, MAX_PART_LEAVES } from "./parts.ts";
+import { partitionTree, MAX_PART_LEAVES, MIN_PART_LEAVES } from "./parts.ts";
 import type { SkeletonTree } from "./skeleton.ts";
 
 /** Build a tree from an edge list; coordinates are arbitrary (the partition does not read them). */
@@ -95,4 +95,59 @@ test("deterministic, and random trees keep coverage and the cap", () => {
     assert.equal(p.parts.reduce((a, x) => a + x.leaves, 0), t.leaves);
     for (const part of p.parts) assert.ok(part.leaves <= MAX_PART_LEAVES && part.leaves >= 1);
   }
+});
+
+test("fix 1: no part has fewer than 3 leaves; coverage sums and the cap holds (flaps, tab included)", () => {
+  // hub 0 with 9 single-leaf limbs and one 8-leaf hub: every limb alone would be a 1-leaf part.
+  const t = twoHubs(9, 8);
+  const p = partitionTree(t);
+  assert.ok(p.parts.length >= 1);
+  for (const part of p.parts) {
+    assert.ok(part.leaves >= MIN_PART_LEAVES, `${part.name} has ${part.leaves}`);
+    assert.ok(part.flaps <= MAX_PART_LEAVES, `${part.name} has ${part.flaps} flaps`);
+  }
+  assert.equal(p.parts.reduce((s, x) => s + x.leaves, 0), t.leaves);
+});
+
+test("fix 1: a small part joins the nearest sibling at the shared junction", () => {
+  // junction 0 with children: hub 1 (5 leaves, at x ~ 0.01), hub 2 (5 leaves, at x ~ 0.02), leaf 3 (1 leaf, at x ~ 0.03)
+  const pairs: [number, number][] = [[0, 1], [0, 2], [0, 3]];
+  let id = 4;
+  for (const h of [1, 2]) for (let i = 0; i < 5; i++) pairs.push([h, id++]);
+  // 11 leaves: pad to exceed the 12-flap cap
+  for (let i = 0; i < 3; i++) pairs.push([2, id++]);
+  const t = make(pairs); // leaves: 5 + 8 + 1 = 14
+  const p = partitionTree(t);
+  assert.equal(p.parts.reduce((s, x) => s + x.leaves, 0), 14);
+  for (const part of p.parts) assert.ok(part.leaves >= MIN_PART_LEAVES && part.flaps <= MAX_PART_LEAVES);
+  // node 3 (the lone limb) is x = 0.03, nearest to hub 2 (x = 0.02): it must be in the same part as hub 2's leaves
+  const withLone = p.parts.find((x) => x.tree.nodes.some((n) => n.id === 3))!;
+  assert.ok(withLone.tree.nodes.some((n) => n.id === 2));
+});
+
+test("fix 2: the tab counts against the cap, so a split part holds at most 11 leaves", () => {
+  const t = twoHubs(13, 12); // 25 leaves
+  const p = partitionTree(t);
+  assert.ok(p.parts.length > 1);
+  for (const part of p.parts) assert.ok(part.flaps <= MAX_PART_LEAVES, `${part.name} ${part.flaps} flaps`);
+  // a 12-leaf tree is not split (no tab), and keeps 12
+  assert.equal(partitionTree(twoHubs(6, 6)).parts[0].leaves, 12);
+});
+
+test("fix 1+2: random trees keep coverage, the flap cap and the 3-leaf minimum when a merge is possible", () => {
+  let s = 777;
+  const rnd = () => ((s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  let checked = 0;
+  for (let k = 0; k < 300; k++) {
+    const n = 20 + Math.floor(rnd() * 40);
+    const pairs: [number, number][] = [];
+    for (let i = 1; i < n; i++) pairs.push([Math.floor(rnd() * i), i]);
+    const t = make(pairs);
+    if (t.leaves <= MAX_PART_LEAVES) continue;
+    const p = partitionTree(t);
+    checked++;
+    assert.equal(p.parts.reduce((a, x) => a + x.leaves, 0), t.leaves);
+    for (const part of p.parts) assert.ok(part.flaps <= MAX_PART_LEAVES && part.leaves >= 1, `${part.name} ${part.leaves}/${part.flaps}`);
+  }
+  assert.ok(checked > 50);
 });

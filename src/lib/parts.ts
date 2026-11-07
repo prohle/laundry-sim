@@ -9,7 +9,17 @@
  * sees it as a flap (the tab the parts are joined at), but it is not counted in `leaves`, which
  * counts leaves of the original tree only. That is what makes R8.2 hold: the `leaves` of all parts
  * add up to the original leaf count. `flaps` is `leaves` plus the tabs, i.e. what the solver packs.
- * Consequence: a part of 12 leaves with a tab is 13 flaps and has no tier; it is reported, not hidden.
+ *
+ * Cap (task 3.22a, spec change 2026-11-06): the cap is on FLAPS, tab included, not on original leaves.
+ * A part is split further while its `flaps` exceed MAX_PART_LEAVES, so a part with one tab holds at most
+ * 11 original leaves, and every part gets a tier. A tree that is not split has no tab and keeps 12.
+ *
+ * Small parts (task 3.22b): a part with fewer than MIN_PART_LEAVES original leaves cannot be solved.
+ * After each split, such a part is merged into the nearest sibling that shares the junction (nearest =
+ * the closest root neighbour of the junction in the tree's own coordinates) provided the merged part
+ * stays within the cap, repeating until every part has at least MIN_PART_LEAVES. A merged part has the
+ * junction as an interior node, not a degree-1 tab, so it costs no extra flap. If no sibling can take it
+ * without breaking the cap it is left alone and the solve step refuses it.
  *
  * Pure and deterministic. Ties for highest degree go to the lowest node id. Parts are ordered by
  * `leaves` descending, then by the lowest original-leaf node id.
@@ -17,6 +27,8 @@
 import type { SkeletonTree, TreeEdge, TreeNode } from "./skeleton.ts";
 
 export const MAX_PART_LEAVES = 12;
+/** A part with fewer original leaves than this cannot be solved on its own. */
+export const MIN_PART_LEAVES = 3;
 
 export interface Part {
   /** "Part 1", "Part 2", ... in order. */
@@ -87,6 +99,50 @@ function leafNodes(t: SkeletonTree): number[] {
   return t.nodes.filter((n) => n.degree === 1).map((n) => n.id);
 }
 
+interface Group { roots: number[]; ids: Set<number>; real: number }
+
+/** Leaves of the part made of `ids` plus the junction, as the solver sees them. */
+function flapsOf(ids: Set<number>, adj: Adj, j: number): number {
+  const all = new Set(ids);
+  all.add(j);
+  let n = 0;
+  for (const id of all) {
+    let d = 0;
+    for (const w of adj.get(id)!.keys()) if (all.has(w)) d++;
+    if (d === 1) n++;
+  }
+  return n;
+}
+
+/** Merge every group with fewer than MIN_PART_LEAVES into its nearest sibling that still fits the cap. */
+function mergeSmall(groups: Group[], pos: Map<number, TreeNode>, cap: number): Group[] {
+  const gs = groups.map((g) => ({ roots: [...g.roots], ids: new Set(g.ids), real: g.real }));
+  const dist = (a: Group, b: Group) => {
+    let d = Infinity;
+    for (const p of a.roots) for (const q of b.roots) d = Math.min(d, Math.hypot(pos.get(p)!.x - pos.get(q)!.x, pos.get(p)!.y - pos.get(q)!.y));
+    return d;
+  };
+  for (;;) {
+    const small = gs.filter((g) => g.real < MIN_PART_LEAVES).sort((a, b) => a.real - b.real || a.roots[0] - b.roots[0]);
+    let did = false;
+    for (const s of small) {
+      // Merged flaps: its leaves plus the other's, with the junction interior (no tab) when 2+ children join.
+      const fits = gs.filter((g) => g !== s && g.real + s.real <= cap);
+      if (fits.length === 0) continue;
+      fits.sort((a, b) => dist(s, a) - dist(s, b) || a.roots[0] - b.roots[0]);
+      const into = fits[0];
+      into.roots.push(...s.roots);
+      for (const id of s.ids) into.ids.add(id);
+      into.real += s.real;
+      gs.splice(gs.indexOf(s), 1);
+      did = true;
+      break;
+    }
+    if (!did) break;
+  }
+  return gs;
+}
+
 /**
  * Partition `tree`. A tree already within the cap comes back as one part with no junction.
  * `maxLeaves` is a parameter for tests only.
@@ -100,7 +156,8 @@ export function partitionTree(tree: SkeletonTree, maxLeaves = MAX_PART_LEAVES): 
   while (work.length) {
     const cur = work.shift()!;
     const real = leafNodes(cur.tree).filter((id) => !cur.tabs.has(id));
-    if (real.length <= maxLeaves) {
+    // The cap counts flaps as the solver sees them (tabs included). An unsplit tree has no tabs.
+    if (cur.tree.leaves <= maxLeaves) {
       if (real.length > 0) done.push(cur);
       continue;
     }
@@ -112,8 +169,19 @@ export function partitionTree(tree: SkeletonTree, maxLeaves = MAX_PART_LEAVES): 
     }
     if (best < 3) throw new RangeError("cannot split a tree with no node of degree 3 or more");
     junctions.push(j);
-    for (const nb of [...adj.get(j)!.keys()].sort((a, b) => a - b)) {
+    const pos = new Map(cur.tree.nodes.map((n) => [n.id, n]));
+    const isReal = (id: number) => adj.get(id)!.size === 1 && !cur.tabs.has(id);
+    let groups: Group[] = [...adj.get(j)!.keys()].sort((a, b) => a - b).map((nb) => {
       const ids = reach(adj, nb, j);
+      return { roots: [nb], ids, real: [...ids].filter(isReal).length };
+    }).filter((g) => g.real > 0);
+    // A subtree with no original leaf (a bare tab from an earlier split) is dropped, as before.
+    const merged = mergeSmall(groups, pos, maxLeaves);
+    // Merging must make progress: a part as large as the tree being split would loop.
+    const progress = merged.every((g) => flapsOf(g.ids, adj, j) < cur.tree.leaves);
+    groups = progress ? merged : groups;
+    for (const g of groups) {
+      const ids = new Set(g.ids);
       ids.add(j);
       const sub = subTree(cur.tree, adj, ids);
       const tabs = new Set([...cur.tabs].filter((t) => ids.has(t)));

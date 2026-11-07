@@ -63,6 +63,9 @@ curved creases; robot folding (January).
 
 - R2.1 Reduce the silhouette to a **tree**: a stick figure with a flap count and edge lengths.
 - R2.2 Propose the tree automatically and show it over the photograph.
+- R2.2a Sibling leaves of one node that point within 25 degrees of each other (a toe or tarsus fork) are one
+  flap: merged into one leaf, the longest edge kept. Leaves of different parents are never merged.
+  - Spec change, 2026-11-06 (user request).
 - R2.3 Let the user correct it: drag a leaf, lengthen an edge, delete a limb.
 - R2.4 The tree is the design artefact. It is serialisable and versioned.
 
@@ -109,6 +112,9 @@ Spec change, 2026-11-06 (user request).
 
 - R8.1 Split at the highest-degree node into the subtrees hanging off that node, recursively, until
   every part has 12 or fewer leaves.
+  - Spec change, 2026-11-06 (user request): the cap counts flaps as the solver sees them, tab included, so a
+    part with one tab holds at most 11 original leaves. A part with fewer than 3 original leaves is merged
+    into the nearest sibling that shares its junction, as long as the merged part stays within the cap.
 - R8.2 Every leaf appears in exactly one part; the sum of part leaves equals the original leaf count.
 - R8.3 Each part is solved and checked on its own. The view folds only if every part folds.
 - R8.4 The assembly note names the shared junction and the number of parts, and states that a

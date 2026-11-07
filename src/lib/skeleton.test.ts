@@ -203,9 +203,9 @@ function leafPixels(t: SkeletonTree): { x: number; y: number }[] {
 const near = (p: { x: number; y: number }, x: number, y: number, r = 6) => Math.hypot(p.x - x, p.y - y) <= r;
 
 test("significance: blunt-end stubs on a wide body are pruned, the long thin leg is kept", () => {
-  const raw = extractTree(bodyLegBump(), { significanceThreshold: 0 });
+  const raw = extractTree(bodyLegBump(), { significanceThreshold: 0, forkAngle: 0 });
   const diagnostics: BranchRecord[] = [];
-  const t = extractTree(bodyLegBump(), { diagnostics, significanceThreshold: 1.0 }); // pinned: not the default
+  const t = extractTree(bodyLegBump(), { diagnostics, significanceThreshold: 1.0, forkAngle: 0 }); // pinned: not the default; forks are tested in forks.test.ts
   const dropped = diagnostics.filter((r) => r.action === "dropped");
   const kept = diagnostics.filter((r) => r.action === "kept");
   console.log(

@@ -357,6 +357,14 @@ to "box-pleated animals".
         exercised only through `analyseViews`); multi-sheet tiers are per part, so the four-chip ladder is all disabled.
       - Spec gap: a part's tab counts as a flap for the solver, so a 12-leaf part is 13 flaps and has no tier.
 
+- [~] 3.25 Merge toe forks (`src/lib/forks.ts`, called at the end of `extractTree`; `forkAngle`, default 25, 0 disables)
+      (spec change, added 2026-11-06, user request; R2.2a)
+      - 7 tests in `src/lib/forks.test.ts`: three toes within 20 degrees -> one leaf; spread over 60 -> three; complete
+        linkage (0/20/40/60 is not one fork); wrap at 180; different parents untouched.
+- [~] 3.22a Cap in flaps, small parts merged (`src/lib/parts.ts`; spec change, added 2026-11-06, user request; R8.1)
+      - Cap counts tab: a split part holds at most 11 original leaves. Parts under 3 leaves merge into the nearest sibling at
+        the junction if the cap allows; otherwise left and refused by the solve step.
+
 **Gate, 20 Nov:** three subjects produce trees that a human accepts after at most two corrections.
 
 ## Phase 4 — Fold it (20–25 Nov)

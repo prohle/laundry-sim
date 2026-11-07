@@ -53,7 +53,7 @@ echo "== Fold checks =="
 run_check "typecheck" npx tsc --noEmit
 
 # 2. Node tests. node --test prints a summary line with the counts.
-run_check "node-tests" bash -c 'npm test --silent 2>&1 | grep -E "^ℹ (tests|pass|fail)" | sed "s/ℹ //" | tr "\n" " "'
+run_check "node-tests" bash -c 'set -o pipefail; npm test --silent 2>&1 | grep -E "^ℹ (tests|pass|fail)" | sed "s/ℹ //" | tr "\n" " "'
 
 # 3. Rust tests
 if [ $FULL -eq 1 ] || [ -n "$(find solver/src solver/tests -newer solver/target/release/fold-solver 2>/dev/null | head -1)" ]; then

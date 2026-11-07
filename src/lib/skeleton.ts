@@ -39,6 +39,7 @@
  * Known limits of Zhang-Suen: a perfectly 2-pixel-wide diagonal line can vanish, and
  * thick shapes leave short corner spurs. Pruning is what removes those.
  */
+import { mergeForks, FORK_ANGLE_DEG } from "./forks.ts";
 
 export interface SkeletonInput {
   /** mask[i] > 0 means foreground; row-major, length width * height. */
@@ -72,6 +73,9 @@ export interface SkeletonOptions {
   maxLeaves?: number;
   /** Cap on thinning passes. Default: max(width, height). */
   maxIterations?: number;
+  /** Leaf children of one node closer than this many degrees are merged into one leaf (src/lib/forks.ts).
+   *  Default FORK_ANGLE_DEG (25). 0 disables. */
+  forkAngle?: number;
 }
 
 /** One leaf branch as judged by significance pruning (diagnostics only). */
@@ -655,11 +659,14 @@ export function extractTree(input: SkeletonInput, options: SkeletonOptions = {})
     if (gdeg[e.a] === 1) leafSignificance[newId.get(e.a)!] = s;
     if (gdeg[e.b] === 1) leafSignificance[newId.get(e.b)!] = s;
   });
-  return {
-    nodes,
-    edges,
-    leaves: deg.filter((d) => d === 1).length,
-    frame: { originX: x0, originY: y0, scale },
-    leafSignificance,
-  };
+  return mergeForks(
+    {
+      nodes,
+      edges,
+      leaves: deg.filter((d) => d === 1).length,
+      frame: { originX: x0, originY: y0, scale },
+      leafSignificance,
+    },
+    options.forkAngle ?? FORK_ANGLE_DEG,
+  ).tree;
 }

@@ -33,6 +33,12 @@ and named Part 1, Part 2. Each part runs the ordinary tier rules and solve; the 
 parts fold. The result is joined at a tab with glue or a slot, so it is never described as
 "one square, no cuts, no glue".
 
+Cap and small parts (spec change, 2026-11-06, user request): the cap of 12 is on flaps, tab included, so a part
+split off a junction holds at most 11 original leaves; a tree that is not split has no tab and keeps 12. After
+each split, a part with fewer than 3 original leaves is merged into the nearest sibling at the same junction
+(nearest by the junction's neighbouring node, in tree coordinates) when the merged part stays within the cap.
+In a merged part the junction is interior, not a degree-1 tab, so it costs no flap.
+
 The tree is the intermediate representation. Everything downstream is a pure function of it.
 
 ## Why no cuts

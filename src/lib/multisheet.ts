@@ -9,7 +9,7 @@
  * The checks below mirror the tail of runPipeline; runPipeline itself is untouched so the
  * single-sheet results cannot change.
  */
-import { partitionTree, type Part, type Partition } from "./parts.ts";
+import { partitionTree, MIN_PART_LEAVES, MAX_PART_LEAVES, type Part, type Partition } from "./parts.ts";
 import { minimumTier, type TierName } from "./tiers.ts";
 import { checkFlatFoldable, type FlatFoldReport } from "./flatfold.ts";
 import { cpToSvg, foldDistribution } from "../../tools/cp-to-svg.ts";
@@ -120,11 +120,11 @@ async function solveOne(p: Part, o: { solve: (t: SkeletonTree) => Promise<SolveO
 
   const min = minimumTier(p.tree);
   if (min.tier === null) {
-    return refuse("tier", `${p.name} needs ${min.requiredLeaves} flaps once its tab is counted, more than one square allows. ${SEPARATE}`, min.reason);
+    return refuse("tier", `${p.name} needs ${min.requiredLeaves} flaps, tab included, and one square allows ${MAX_PART_LEAVES}. ${SEPARATE}`, min.reason);
   }
   base.tier = min.tier;
-  if (p.flaps < 3) {
-    return refuse("tree", `${p.name} is too small to fold as a sheet of its own: ${p.leaves} limb and a tab. ${SEPARATE}`, `part has ${p.flaps} flaps; at least 3 needed`);
+  if (p.leaves < MIN_PART_LEAVES) {
+    return refuse("tree", `${p.name} is too small to fold as a sheet of its own: ${p.leaves} limb${p.leaves === 1 ? "" : "s"}, and it could not be joined to another part without passing ${MAX_PART_LEAVES} flaps. ${SEPARATE}`, `part has ${p.leaves} original leaves and ${p.flaps} flaps; at least ${MIN_PART_LEAVES} leaves needed and no sibling could take it within ${MAX_PART_LEAVES} flaps`);
   }
   const t0 = performance.now();
   const ran = await o.solve(p.tree);
