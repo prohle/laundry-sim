@@ -6,7 +6,8 @@
 ## Purpose
 
 Turn a photograph of an object into an origami crease pattern a person can fold, at a complexity
-the person chooses.
+the person chooses (Fold mode); or into a flat net that is cut, folded and glued into a closed volume
+(Hollow mode, R9).
 
 ## The chimera
 
@@ -102,9 +103,10 @@ curved creases; robot folding (January).
 - R6.2 State the minimum tier for the subject, and why.
 - R6.3 Never claim "any object". Never claim kirigami. Never claim a faithful replica.
 - R6.4 Show the refusal case in the product, not only in the video.
-- R6.5 The single-sheet claim stays "one square, no cuts, no glue". A multi-sheet model must never
-  use that sentence.
-  - Spec change, 2026-11-06 (user request).
+- R6.5 The single-sheet claim stays "one square, no cuts, no glue", and it applies to Fold mode only.
+  A multi-sheet model must never use that sentence. Hollow mode never uses it and is never called
+  origami; its claim is: "Hollow mode: cut, fold, glue, into a closed volume."
+  - Spec change, 2026-11-06 (user request). Hollow scoping added 2026-11-07 (user request).
 
 ### R8 — Multi-sheet models
 
@@ -119,6 +121,21 @@ Spec change, 2026-11-06 (user request).
 - R8.3 Each part is solved and checked on its own. The view folds only if every part folds.
 - R8.4 The assembly note names the shared junction and the number of parts, and states that a
   multi-sheet model is joined at a tab and needs glue or a slot.
+
+### R9 — Hollow mode
+
+Spec change, 2026-11-07 (user request). Two modes in one product: **Fold** (R1–R8, unchanged) and
+**Hollow** (mesh in, flat net with tabs out; cut and glued into a closed volume). Meshes come from the
+visual hull of 2 to 4 silhouettes (tasks 9.3, 9.4); R9.1–R9.5 take the mesh as given.
+
+- R9.1 Accept a closed triangle mesh (vertices, faces) and a paper size.
+- R9.2 Unfold along a breadth-first spanning tree of the face adjacency graph, placing each face
+  across the shared edge without overlap.
+- R9.3 Add a tab on every edge not in the spanning tree.
+- R9.4 Detect overlapping placements, retry with a different root up to 8 times, and refuse with a
+  reason if none succeeds.
+- R9.5 Render the net as SVG: cut lines solid, fold lines dashed, tabs labelled, with a legend, paper
+  size and face count.
 
 ### R7 — Measure
 

@@ -47,6 +47,27 @@ Cutting makes it kirigami. More importantly, tree theory assumes the sheet is on
 a cut edge is a boundary, not a hinge, and the circle packing stops describing the object. So
 "no cuts" is not a stylistic choice — it is a precondition of the solver.
 
+Spec change, 2026-11-07 (user request): this holds for **Fold mode** and for the TreeMaker solver. It
+does not apply to **Hollow mode**, which cuts by definition and is never described as origami.
+
+## Hollow mode (spec change, 2026-11-07, user request)
+
+```
+closed mesh (vertices, faces) + paper size
+  → face adjacency graph
+  → breadth-first spanning tree from a root face
+  → unfold: place each face across the shared edge, in 2D
+  → overlap test; on overlap retry with another root (up to 8), else refuse with the reason
+  → a tab on every edge not in the spanning tree
+  → SVG: cut solid, fold dashed, tabs labelled, legend, paper size, face count
+```
+
+Spanning-tree edges are folds (dashed). Every other edge is cut (solid) and carries a tab on one side;
+the other side carries the matching label. A tab and its labelled edge share a number. The module is
+`src/lib/net.ts`; it knows nothing of the Fold pipeline. Each child face is placed by its third vertex
+on the far side of the shared edge, preserving edge lengths. Meshes arrive from the visual hull
+(tasks 9.3, 9.4), which is not built yet.
+
 ## Complexity ladder
 
 | Tier | Flaps | Grid | Steps | Time | Paper | Typical subject |
@@ -167,7 +188,7 @@ so before the user cuts paper.
 
 ## Deliberate omissions
 
-No cuts. No glue. No curved creases. No wet folding. No faces. No models above twelve flaps. No
+In Fold mode: no cuts, no glue. No curved creases. No wet folding. No faces. No models above twelve flaps. No
 robot folding. No claim of general origami design.
 
 ## Risks and gates

@@ -22,6 +22,12 @@ is the only tier that folds. Hard and Expert are attempted and refused, with the
 Each piece is from a different decade and none was meant to meet the others. The photograph
 becomes the paper, and the output leaves the screen.
 
+Hollow mode swaps tree theory for computational geometry: a camera, computational geometry,
+TreeMaker, and paper, with two routes from a photograph to a physical sheet. Fold packs a stick
+figure into one square and folds flat. Hollow turns a mesh into a net that is cut, folded and glued
+into a closed volume. It cuts, so it is not origami and is never described as origami. Both modes
+are photograph-to-paper; this is one product, not two.
+
 ## What it does
 
 1. You upload one PNG or JPEG (up to 10 MiB).

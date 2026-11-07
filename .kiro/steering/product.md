@@ -27,7 +27,8 @@ a teacher can print a worksheet in a minute and cannot design a foldable animal 
 ## What it must never do
 
 - Never claim "any object". The supported class is four to twelve flaps, objects with limbs.
-- Never allow cuts. Cutting is kirigami and it breaks the solver's assumption of one square.
+- Never allow cuts in Fold mode. Cutting is kirigami and it breaks the solver's assumption of one
+  square. Hollow mode cuts by definition and must never be described as origami.
 - Never present a library lookup as generation.
 - Never hide the minimum tier. If a subject needs eight flaps, say so before the user prints.
 - Never print a pattern without a valid mountain/valley assignment or an explicit collapse.

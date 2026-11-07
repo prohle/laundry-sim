@@ -476,6 +476,32 @@ to "box-pleated animals".
 - [ ] 6.5 `SUBMISSION.md` fully checked
 - [ ] 6.6 Submit 2 December, screenshot the confirmation
 
+## Phase 9 — Hollow mode (7–9 Nov, then 9.3 onward)
+
+Spec change, 2026-11-07 (user request, option 1 approved). R9; design "Hollow mode".
+
+- [x] 9.1 `src/lib/net.ts`: partition and unfold, with tests (cube, icosahedron, open mesh refused,
+      overlap retry)
+      - Observed (A4): cube 12 faces, 11 folds, 7 tabs, bbox 190.0 x 173.3 mm, 1 attempt, 0 overlaps, area error 0.
+        Icosahedron 20 faces, 19 folds, 11 tabs, bbox 190.0 x 168.7 mm, 1 attempt, 0 overlaps, area error 3e-16.
+      - Open mesh (cube minus one triangle) refused at `mesh`, 3 open edges. Overlap retry fired on a perturbed
+        80-face icosphere (`bumpy(1, 0.1, 7)`, found by search): root 0 had 7 overlaps, root 11 had 0. A torus
+        (96 faces) overlaps from all 8 roots and is refused at `overlap`.
+      - `src/lib/net.test.ts`, 11 tests, in `npm test`. `npm run check`: 136 pass.
+      - Not checked: tabs are not tested for overlap with faces or other tabs (in the renders a few tabs touch a
+        neighbouring face or tab). Coplanar cube triangles are folds or cuts like any other edge. Scale is auto: the
+        largest that fits the paper, so model size follows paper size.
+- [x] 9.2 SVG renderer (`src/lib/net-svg.ts`), `tools/net-demo.ts`, `tools/out/net-cube.svg`, `tools/out/net-icosa.svg`
+      - Rendered both in headless Chromium and looked at them: cut solid, fold dashed, tabs numbered with the matching
+        edge numbered, legend with paper size, face count, tab count, scale. The text says "cut, fold, glue" and never
+        "origami" (tested).
+- [ ] 9.3 Visual hull from 2 to 4 silhouettes
+- [ ] 9.4 Closed mesh from the hull, coarse enough to cut by hand
+- [ ] 9.5 Screen: a Fold / Hollow switch, with Hollow showing the net and assembly
+
+**Gate, 9 Nov:** 9.1 and 9.2 working, or Hollow mode is parked and the entry ships Fold only. If
+parked, say so plainly and stop; do not carry a half-built mode into December.
+
 ## Kiro artifacts to produce along the way
 
 - [ ] Hook: run property tests on save
