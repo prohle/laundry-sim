@@ -11,8 +11,8 @@ for (const [name, mesh, file] of [["cube", cube(), "net-cube.svg"], ["icosahedro
   const n = r.net;
   writeFileSync(`tools/out/${file}`, netToSvg(n));
   console.log(
-    `${name}: faces=${n.faces.length} edges=${n.edges.length} folds=${n.edges.filter((e) => e.kind === "fold").length}` +
-      ` tabs=${n.tabs.length} bbox=${n.bbox.width.toFixed(1)}x${n.bbox.height.toFixed(1)}mm scale=${n.scale.toFixed(2)}mm/unit` +
+    `${name}: faces=${n.faces.length} edges=${n.edges.length} folds=${n.edges.filter((e) => e.kind === "fold").length} flats=${n.edges.filter((e) => e.kind === "flat").length}` +
+      ` tabs=${n.tabs.length} shortened=${n.tabsShortened} dropped=${n.tabsDropped.length} bbox=${n.bbox.width.toFixed(1)}x${n.bbox.height.toFixed(1)}mm scale=${n.scale.toFixed(2)}mm/unit` +
       ` attempts=${n.attempts.length} root=${n.root} overlaps=${n.overlaps}` +
       ` area3d=${n.area3d.toFixed(6)} area2d=${n.area2d.toFixed(3)}mm2 areaError=${n.areaError.toExponential(2)} -> tools/out/${file}`,
   );

@@ -491,6 +491,21 @@ Spec change, 2026-11-07 (user request, option 1 approved). R9; design "Hollow mo
       - Not checked: tabs are not tested for overlap with faces or other tabs (in the renders a few tabs touch a
         neighbouring face or tab). Coplanar cube triangles are folds or cuts like any other edge. Scale is auto: the
         largest that fits the paper, so model size follows paper size.
+- [x] 9.1a Coplanar joins and tab collisions in the net (`src/lib/net.ts`)
+      (spec change, added 2026-11-07, user request; refines R9.2, R9.3)
+      - Neighbours are ordered flattest first (interior dihedral from the opposite vertices, so face winding does not
+        matter); a face placed across an edge within 1 degree of flat pulls in its whole coplanar panel before any other
+        face is placed. Such a tree edge is `flat`: no line, not a fold. Cube: 5 folds, 6 flat joins, 7 tabs, same from
+        all 12 roots.
+      - Each tab is tested against every face except the one it hangs on, and every other tab; on a collision it is
+        cut back to 8, 6, then 4 mm (only depths below its current one), else dropped and recorded (`tabsDropped`;
+        the SVG numbers that edge on both sides with "!" and says to tape it). `tabsShortened` counts the cut back.
+      - Deviation from the request: the partner face (other side of the cut edge) is tested too, not excluded.
+        Every collision on the icosahedron and icosphere is with the partner, so with it excluded they would vanish
+        and the tab would print across a neighbouring triangle.
+      - Shortening does not help those: the tab's side angle (about 73 degrees) is fixed, so a gap at a vertex
+        narrower than that is hit at any depth. A tab shape that follows the gap would be a spec change; not made.
+
 - [x] 9.2 SVG renderer (`src/lib/net-svg.ts`), `tools/net-demo.ts`, `tools/out/net-cube.svg`, `tools/out/net-icosa.svg`
       - Rendered both in headless Chromium and looked at them: cut solid, fold dashed, tabs numbered with the matching
         edge numbered, legend with paper size, face count, tab count, scale. The text says "cut, fold, glue" and never

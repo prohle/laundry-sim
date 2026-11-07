@@ -30,6 +30,7 @@ export function netToSvg(net: Net): string {
     );
   }
 
+  const droppedLabels = new Set(net.tabsDropped.map((d) => d.label));
   const byKey = new Map(net.edges.map((e) => [`${e.a},${e.b}`, e]));
   for (const pf of net.faces) {
     const cx = (pf.p[0][0] + pf.p[1][0] + pf.p[2][0]) / 3;
@@ -41,6 +42,7 @@ export function netToSvg(net: Net): string {
       const e = byKey.get(a < b ? `${a},${b}` : `${b},${a}`)!;
       const p = pf.p[i];
       const q = pf.p[j];
+      if (e.kind === "flat") continue; // coplanar join inside a panel: no line
       if (e.kind === "fold") {
         if (e.faces[0] !== pf.face) continue; // drawn once
         out.push(
@@ -50,8 +52,10 @@ export function netToSvg(net: Net): string {
         out.push(
           `<line class="cut" x1="${f(p[0])}" y1="${f(p[1])}" x2="${f(q[0])}" y2="${f(q[1])}" stroke="#000" stroke-width="0.5" stroke-linecap="round"/>`,
         );
-        if (e.faces[0] !== pf.face) {
-          // The edge the tab glues to: number it just outside the edge.
+        const dropped = droppedLabels.has(e.label);
+        if (dropped || e.faces[0] !== pf.face) {
+          // The edge the tab glues to: number it just outside the edge. A dropped tab's edge is numbered
+          // on both sides with a "!" so the gap is visible.
           const mx = (p[0] + q[0]) / 2;
           const my = (p[1] + q[1]) / 2;
           let dx = mx - cx;
@@ -59,7 +63,7 @@ export function netToSvg(net: Net): string {
           const d = Math.hypot(dx, dy) || 1;
           dx /= d; dy /= d;
           out.push(
-            `<text class="edge-label" x="${f(mx + dx * 2.4)}" y="${f(my + dy * 2.4)}" font-size="3" text-anchor="middle" dominant-baseline="middle">${e.label}</text>`,
+            `<text class="${dropped ? "dropped-label" : "edge-label"}" x="${f(mx + dx * 2.4)}" y="${f(my + dy * 2.4)}" font-size="3" text-anchor="middle" dominant-baseline="middle">${e.label}${dropped ? "!" : ""}</text>`,
           );
         }
       }
@@ -81,6 +85,11 @@ export function netToSvg(net: Net): string {
   out.push(
     `<text x="${MARGIN_MM}" y="${y0 + 7}">${net.paper.name} ${net.paper.width} × ${net.paper.height} mm · ${net.faces.length} faces · ${net.tabs.length} tabs · 1 mesh unit = ${net.scale.toFixed(1)} mm</text>`,
   );
+  if (net.tabsDropped.length > 0) {
+    out.push(
+      `<text class="dropped-note" x="${MARGIN_MM}" y="${y0 + 17}">No tab fits on edge${net.tabsDropped.length === 1 ? "" : "s"} ${net.tabsDropped.map((d) => d.label).join(", ")} (marked !). Join ${net.tabsDropped.length === 1 ? "it" : "them"} with tape.</text>`,
+    );
+  }
   out.push(`<text x="${MARGIN_MM}" y="${y0 + 12}">Hollow mode: cut, fold, glue, into a closed volume.</text>`);
   out.push(`</g>`);
   out.push(`</svg>`);

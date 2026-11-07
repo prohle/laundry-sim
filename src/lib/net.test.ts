@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildNet, trianglesOverlap, defaultRoots, A4, MAX_ATTEMPTS } from "./net.ts";
+import { buildNet, trianglesOverlap, polygonsOverlap, defaultRoots, A4, MAX_ATTEMPTS, FLAT_DEGREES, TAB_DEPTHS_MM } from "./net.ts";
 import type { Mesh, Net } from "./net.ts";
 import { netToSvg } from "./net-svg.ts";
 import { cube, icosahedron, icosphere, bumpy, torus } from "./net-meshes.ts";
@@ -11,14 +11,29 @@ function mustBuild(mesh: Mesh): Net {
   return r.net;
 }
 
+function assertTabsClear(net: Net) {
+  for (const t of net.tabs) {
+    for (const f of net.faces) {
+      if (f.face === t.face) continue;
+      assert.equal(polygonsOverlap(t.polygon, f.p, 1e-6), false, `tab ${t.label} crosses face ${f.face}`);
+    }
+    for (const o of net.tabs) {
+      if (o === t) continue;
+      assert.equal(polygonsOverlap(t.polygon, o.polygon, 1e-6), false, `tab ${t.label} crosses tab ${o.label}`);
+    }
+  }
+}
+
 function checkNet(mesh: Mesh, net: Net) {
   const F = mesh.faces.length;
   const E = (F * 3) / 2;
   assert.equal(net.faces.length, F);
   assert.equal(net.edges.length, E);
-  // Spanning tree on F faces has F - 1 edges; every other edge is cut and has a tab (R9.3).
-  assert.equal(net.edges.filter((e) => e.kind === "fold").length, F - 1);
-  assert.equal(net.tabs.length, E - (F - 1));
+  // Spanning tree on F faces has F - 1 edges (folds plus flat joins); every other edge is cut and has a tab,
+  // unless the tab was dropped for a collision (R9.3).
+  const treeEdges = net.edges.filter((e) => e.kind !== "cut").length;
+  assert.equal(treeEdges, F - 1);
+  assert.equal(net.tabs.length + net.tabsDropped.length, E - (F - 1));
   assert.equal(net.overlaps, 0);
   // Independent recount of overlaps on the returned placement.
   for (let i = 0; i < F; i++) {
@@ -39,22 +54,103 @@ function checkNet(mesh: Mesh, net: Net) {
   assert.ok(net.areaError < 1e-9, `area error ${net.areaError}`);
   // Fits the usable area on the paper.
   assert.ok(net.bbox.width <= A4.width + 1e-9 && net.bbox.height <= A4.height + 1e-9);
-  // Labels are 1..tabs, each used by exactly one tab.
-  assert.deepEqual(net.tabs.map((t) => t.label).sort((a, b) => a - b), Array.from({ length: net.tabs.length }, (_, i) => i + 1));
+  // Labels are 1..cuts, each used by exactly one tab or one dropped tab.
+  const used = [...net.tabs.map((t) => t.label), ...net.tabsDropped.map((t) => t.label)].sort((a, b) => a - b);
+  assert.deepEqual(used, Array.from({ length: used.length }, (_, i) => i + 1));
+  // No surviving tab crosses a face (other than the one it hangs on) or another tab.
+  assertTabsClear(net);
 }
 
-test("cube: 12 faces, 11 folds, 7 tabs, no overlap, area matches", () => {
+test("cube: 12 faces, 5 folds, 6 flat joins, 7 tabs, no overlap, area matches", () => {
   const mesh = cube();
   const net = mustBuild(mesh);
   checkNet(mesh, net);
   assert.equal(net.tabs.length, 7);
+  assert.equal(net.edges.filter((e) => e.kind === "fold").length, 5);
+  assert.equal(net.edges.filter((e) => e.kind === "flat").length, 6);
 });
 
-test("icosahedron: 20 faces, 19 folds, 11 tabs, no overlap, area matches", () => {
+test("coplanar preference: the cube unfolds to six squares from every root, 5 folds, no diagonal creases", () => {
+  const mesh = cube();
+  for (let root = 0; root < mesh.faces.length; root++) {
+    const r = buildNet(mesh, A4, { roots: [root] });
+    assert.ok(r.ok, `root ${root}`);
+    const folds = r.net.edges.filter((e) => e.kind === "fold");
+    const flats = r.net.edges.filter((e) => e.kind === "flat");
+    assert.equal(folds.length, 5, `root ${root}`);
+    assert.equal(flats.length, 6, `root ${root}`);
+    for (const e of folds) assert.ok(Math.abs(e.dihedral - 90) < 1e-6, `root ${root}: fold at ${e.dihedral}`);
+    for (const e of flats) assert.ok(Math.abs(e.dihedral - 180) < 1e-6);
+    // The diagonal of every square is a flat join: no tree edge has a dihedral of 90 except the 5 folds, and
+    // the SVG draws no line for a flat join.
+    const svg = netToSvg(r.net);
+    assert.equal((svg.match(/class="fold"/g) ?? []).length, 5);
+  }
+});
+
+test("flat join threshold: coplanar within 1 degree is flat, 2 degrees is a fold", () => {
+  // Lift vertex 3 of the bottom square; the bottom diagonal (0,2) bends by about delta / 0.7071 radians.
+  const lift = (delta: number) => {
+    const m = cube();
+    m.vertices[3] = [0, 1, delta];
+    return m;
+  };
+  for (const [delta, deg] of [[0.00617, 0.5], [0.0247, 2]] as const) {
+    const net = mustBuild(lift(delta));
+    const d = net.edges.find((e) => e.a === 0 && e.b === 2)!;
+    assert.ok(Math.abs(180 - d.dihedral - deg) < 0.1, `bend ${180 - d.dihedral} expected about ${deg}`);
+    for (const e of net.edges) {
+      if (e.kind === "flat") assert.ok(e.dihedral >= FLAT_DEGREES);
+      if (e.kind === "fold") assert.ok(e.dihedral < FLAT_DEGREES);
+    }
+  }
+  const slight = mustBuild(lift(0.00617));
+  const bent = mustBuild(lift(0.0247));
+  assert.notEqual(slight.edges.find((e) => e.a === 0 && e.b === 2)!.kind, "fold");
+  assert.equal(bent.edges.find((e) => e.a === 0 && e.b === 2)!.kind === "cut", false);
+});
+
+test("icosahedron: 20 faces, 19 folds, 11 cut edges, no overlap, area matches", () => {
   const mesh = icosahedron();
   const net = mustBuild(mesh);
   checkNet(mesh, net);
-  assert.equal(net.tabs.length, 11);
+  assert.equal(net.edges.filter((e) => e.kind === "fold").length, 19);
+  assert.equal(net.tabs.length + net.tabsDropped.length, 11);
+});
+
+test("tabs on a cube collide with nothing: none shortened, none dropped, default depth", () => {
+  const net = mustBuild(cube());
+  assert.equal(net.tabsShortened, 0);
+  assert.equal(net.tabsDropped.length, 0);
+  for (const t of net.tabs) {
+    const len = Math.hypot(t.polygon[1][0] - t.polygon[0][0], t.polygon[1][1] - t.polygon[0][1]);
+    assert.ok(Math.abs(t.depth - 0.3 * len) < 1e-9);
+  }
+});
+
+test("tab collision: tabs are shortened to 8, 6 or 4 mm, or dropped and recorded (found by search)", () => {
+  const mesh = bumpy(1, 0.05, 4); // 80 faces; 3 tabs shortened, 12 dropped when found
+  const net = mustBuild(mesh);
+  checkNet(mesh, net);
+  assert.ok(net.tabsShortened > 0, "expected at least one shortened tab");
+  assert.ok(net.tabsDropped.length > 0, "expected at least one dropped tab");
+  // A shortened tab is one whose depth is below the default 0.3 x edge length, and is 8, 6 or 4 mm.
+  const shortened = net.tabs.filter((t) => {
+    const len = Math.hypot(t.polygon[1][0] - t.polygon[0][0], t.polygon[1][1] - t.polygon[0][1]);
+    return t.depth < 0.3 * len - 1e-9;
+  });
+  assert.equal(shortened.length, net.tabsShortened);
+  for (const t of shortened) assert.ok(TAB_DEPTHS_MM.some((d) => Math.abs(d - t.depth) < 1e-9), `depth ${t.depth}`);
+  // A dropped tab is recorded with its edge and has no tab; the SVG numbers the edge on both sides with "!".
+  const cutLabels = net.edges.filter((e) => e.kind === "cut").map((e) => e.label);
+  for (const d of net.tabsDropped) {
+    assert.ok(cutLabels.includes(d.label));
+    assert.equal(net.tabs.some((t) => t.label === d.label), false);
+  }
+  const svg = netToSvg(net);
+  assert.equal((svg.match(/class="dropped-label"/g) ?? []).length, 2 * net.tabsDropped.length);
+  assert.match(svg, /No tab fits on edges?/);
+  assert.equal((svg.match(/class="tab"/g) ?? []).length, net.tabs.length);
 });
 
 test("open mesh is refused at stage mesh, naming the open edges", () => {
@@ -143,12 +239,12 @@ test("a paper too small for margin and legend is refused at stage paper", () => 
 test("svg: solid cut, dashed fold, tab and edge labels, legend with paper size and face count", () => {
   const net = mustBuild(cube());
   const svg = netToSvg(net);
-  assert.equal((svg.match(/class="fold"/g) ?? []).length, 11);
+  assert.equal((svg.match(/class="fold"/g) ?? []).length, 5);
   assert.equal((svg.match(/class="cut"/g) ?? []).length, 14); // 7 cut edges, two copies each
   assert.equal((svg.match(/class="tab"/g) ?? []).length, 7);
   assert.equal((svg.match(/class="tab-label"/g) ?? []).length, 7);
   assert.equal((svg.match(/class="edge-label"/g) ?? []).length, 7);
-  assert.equal((svg.match(/stroke-dasharray/g) ?? []).length, 11 + 1); // folds plus the legend sample
+  assert.equal((svg.match(/stroke-dasharray/g) ?? []).length, 5 + 1); // folds plus the legend sample
   assert.match(svg, /A4 210 × 297 mm · 12 faces · 7 tabs/);
   assert.match(svg, /width="210mm" height="297mm"/);
   assert.match(svg, /Hollow mode: cut, fold, glue, into a closed volume\./);

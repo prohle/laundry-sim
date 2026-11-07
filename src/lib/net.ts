@@ -27,6 +27,10 @@ export interface Paper {
 export const A4: Paper = { name: "A4", width: 210, height: 297 };
 
 export const MAX_ATTEMPTS = 8;
+/** A dihedral at or above this (degrees, 180 = coplanar) is a flat join: within 1 degree of flat. */
+export const FLAT_DEGREES = 179;
+/** Tab depths tried, in order, when the default tab collides (mm). Only depths below the current one are used. */
+export const TAB_DEPTHS_MM = [8, 6, 4];
 /** Free margin on every side of the paper, and the strip reserved at the bottom for the legend (mm). */
 export const MARGIN_MM = 10;
 export const LEGEND_MM = 24;
@@ -46,9 +50,15 @@ export interface NetEdge {
   b: number;
   /** The two faces that share it, lower index first. */
   faces: [number, number];
-  kind: "fold" | "cut";
-  /** For a cut edge: its number, shared by the tab and the edge it glues to. Folds have 0. */
+  /**
+   * fold: a spanning-tree edge that bends. flat: a spanning-tree edge whose two faces are coplanar within
+   * FLAT_DEGREES; an internal panel edge, not drawn and not counted as a fold. cut: everything else.
+   */
+  kind: "fold" | "cut" | "flat";
+  /** For a cut edge: its number, shared by the tab and the edge it glues to. Folds and flats have 0. */
   label: number;
+  /** Interior dihedral angle between the two faces in degrees; 180 is coplanar. */
+  dihedral: number;
 }
 
 export interface Tab {
@@ -60,6 +70,15 @@ export interface Tab {
   polygon: [Vec2, Vec2, Vec2, Vec2];
   /** Where the number is written. */
   at: Vec2;
+  /** How far the tab stands out from its edge, in millimetres. */
+  depth: number;
+}
+
+/** A tab that collided at every depth down to the shortest and was removed. Its edge cannot be glued. */
+export interface DroppedTab {
+  label: number;
+  edge: [number, number];
+  face: number;
 }
 
 export interface Attempt {
@@ -71,6 +90,10 @@ export interface Net {
   faces: PlacedFace[];
   edges: NetEdge[];
   tabs: Tab[];
+  /** Tabs that were cut back to 8, 6 or 4 mm to clear a collision. */
+  tabsShortened: number;
+  /** Tabs removed because they collided even at 4 mm. Those edges have a number but no tab. */
+  tabsDropped: DroppedTab[];
   paper: Paper;
   root: number;
   attempts: Attempt[];
@@ -119,8 +142,10 @@ const edgeKey = (a: number, b: number) => (a < b ? `${a},${b}` : `${b},${a}`);
 interface Adjacency {
   /** edge key -> faces sharing it (sorted). */
   edgeFaces: Map<string, number[]>;
-  /** face -> neighbouring faces, sorted. */
+  /** face -> neighbouring faces, flattest edge first, then by index. */
   neighbours: number[][];
+  /** edge key -> interior dihedral angle in degrees (180 = coplanar). */
+  dihedral: Map<string, number>;
 }
 
 function refuseMesh(message: string, detail: Record<string, unknown>): NetResult {
@@ -201,7 +226,44 @@ function validate(mesh: Mesh): { refusal: NetResult } | { adj: Adjacency } {
       }),
     };
   }
-  return { adj: { edgeFaces, neighbours } };
+  return { adj: { edgeFaces, neighbours, dihedral: new Map() } };
+}
+
+// ---------------------------------------------------------------- flatness
+
+/**
+ * Interior dihedral angle across the edge (u, v) in degrees, from the two opposite vertices, so it does not
+ * depend on face orientation: 180 is coplanar, 0 is a face folded back flat on its neighbour.
+ */
+function dihedralDegrees(V: Vec3[], u: number, v: number, wf: number, wg: number): number {
+  const e = sub3(V[v], V[u]);
+  const el = len3(e);
+  const ex: Vec3 = [e[0] / el, e[1] / el, e[2] / el];
+  const perp = (w: number): Vec3 => {
+    const d = sub3(V[w], V[u]);
+    const k = d[0] * ex[0] + d[1] * ex[1] + d[2] * ex[2];
+    return [d[0] - k * ex[0], d[1] - k * ex[1], d[2] - k * ex[2]];
+  };
+  const a = perp(wf);
+  const b = perp(wg);
+  const c = (a[0] * b[0] + a[1] * b[1] + a[2] * b[2]) / (len3(a) * len3(b));
+  return (Math.acos(Math.max(-1, Math.min(1, c))) * 180) / Math.PI;
+}
+
+/** Fill adj.dihedral and order every face's neighbours flattest first (ties by index). */
+function orderByFlatness(mesh: Mesh, adj: Adjacency): void {
+  for (const [k, fs] of adj.edgeFaces) {
+    const [u, v] = k.split(",").map(Number);
+    const opp = (f: number) => mesh.faces[f].find((q) => q !== u && q !== v)!;
+    adj.dihedral.set(k, dihedralDegrees(mesh.vertices, u, v, opp(fs[0]), opp(fs[1])));
+  }
+  const between = (f: number, g: number) => {
+    const shared = mesh.faces[g].filter((q) => mesh.faces[f].includes(q));
+    return adj.dihedral.get(edgeKey(shared[0], shared[1]))!;
+  };
+  adj.neighbours.forEach((list, f) => {
+    list.sort((g, h) => between(f, h) - between(f, g) || g - h);
+  });
 }
 
 // ---------------------------------------------------------------- unfolding
@@ -242,24 +304,44 @@ function unfold(mesh: Mesh, adj: Adjacency, root: number): Unfolded {
   const h = Math.sqrt(Math.max(0, d02 * d02 - x * x));
   placed[root] = { face: root, v: [t0[0], t0[1], t0[2]], p: [[0, 0], [d01, 0], [x, h]] };
 
+  // Place face g across the shared edge of f, then at once everything coplanar with g that is still
+  // unplaced, so a flat panel is joined by flat edges before any other face can claim a piece of it.
   const queue = [root];
-  while (queue.length) {
-    const f = queue.shift()!;
+  const attach = (f: number, g: number) => {
     const pf = placed[f]!;
+    const tg = mesh.faces[g];
+    // The shared edge: the two vertices of g that are also in f.
+    const shared = tg.filter((v) => pf.v.includes(v));
+    const w = tg.find((v) => !shared.includes(v))!;
+    const [u, v] = shared;
+    const pu = pf.p[pf.v.indexOf(u)];
+    const pv = pf.p[pf.v.indexOf(v)];
+    const opposite = pf.v.find((q) => q !== u && q !== v)!;
+    const pw = thirdPoint(pu, pv, dist3(V[u], V[w]), dist3(V[v], V[w]), pf.p[pf.v.indexOf(opposite)]);
+    placed[g] = { face: g, v: [u, v, w], p: [pu, pv, pw] };
+    treeEdges.add(edgeKey(u, v));
+    queue.push(g);
+  };
+  const flood = (start: number) => {
+    const stack = [start];
+    while (stack.length) {
+      const f = stack.pop()!;
+      for (const g of adj.neighbours[f]) {
+        if (placed[g]) continue;
+        const shared = mesh.faces[g].filter((q) => mesh.faces[f].includes(q));
+        if (adj.dihedral.get(edgeKey(shared[0], shared[1]))! < FLAT_DEGREES) continue;
+        attach(f, g);
+        stack.push(g);
+      }
+    }
+  };
+  flood(root);
+  for (let head = 0; head < queue.length; head++) {
+    const f = queue[head];
     for (const g of adj.neighbours[f]) {
       if (placed[g]) continue;
-      const tg = mesh.faces[g];
-      // The shared edge: the two vertices of g that are also in f.
-      const shared = tg.filter((v) => pf.v.includes(v));
-      const w = tg.find((v) => !shared.includes(v))!;
-      const [u, v] = shared;
-      const pu = pf.p[pf.v.indexOf(u)];
-      const pv = pf.p[pf.v.indexOf(v)];
-      const opposite = pf.v.find((q) => q !== u && q !== v)!;
-      const pw = thirdPoint(pu, pv, dist3(V[u], V[w]), dist3(V[v], V[w]), pf.p[pf.v.indexOf(opposite)]);
-      placed[g] = { face: g, v: [u, v, w], p: [pu, pv, pw] };
-      treeEdges.add(edgeKey(u, v));
-      queue.push(g);
+      attach(f, g);
+      flood(g);
     }
   }
   return { root, placed: placed as PlacedFace[], treeEdges };
@@ -272,10 +354,15 @@ function unfold(mesh: Mesh, adj: Adjacency, root: number): Unfolded {
  * a vertex do not. Separating-axis test over the six edge normals; `eps` is a length tolerance.
  */
 export function trianglesOverlap(p: [Vec2, Vec2, Vec2], q: [Vec2, Vec2, Vec2], eps: number): boolean {
+  return polygonsOverlap(p, q, eps);
+}
+
+/** Same test for any two convex polygons (a tab is a trapezoid). */
+export function polygonsOverlap(p: readonly Vec2[], q: readonly Vec2[], eps: number): boolean {
   for (const tri of [p, q]) {
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < tri.length; i++) {
       const a = tri[i];
-      const b = tri[(i + 1) % 3];
+      const b = tri[(i + 1) % tri.length];
       const nx = a[1] - b[1];
       const ny = b[0] - a[0];
       const nl = Math.hypot(nx, ny);
@@ -310,7 +397,7 @@ export function countOverlaps(placed: PlacedFace[], eps: number): number {
 
 // ---------------------------------------------------------------- tabs
 
-function makeTab(pf: PlacedFace, a: number, b: number, label: number): Tab {
+function makeTab(pf: PlacedFace, a: number, b: number, label: number, depthOverride?: number): Tab {
   const ia = pf.v.indexOf(a);
   const ib = pf.v.indexOf(b);
   const ic = 3 - ia - ib;
@@ -325,7 +412,7 @@ function makeTab(pf: PlacedFace, a: number, b: number, label: number): Tab {
   let nx = -uy;
   let ny = ux;
   if ((pc[0] - pa[0]) * nx + (pc[1] - pa[1]) * ny > 0) { nx = -nx; ny = -ny; } // away from the face
-  const depth = 0.3 * len;
+  const depth = depthOverride ?? 0.3 * len;
   const inset = 0.3 * depth;
   const pb2: Vec2 = [pb[0] + nx * depth - ux * inset, pb[1] + ny * depth - uy * inset];
   const pa2: Vec2 = [pa[0] + nx * depth + ux * inset, pa[1] + ny * depth + uy * inset];
@@ -335,6 +422,7 @@ function makeTab(pf: PlacedFace, a: number, b: number, label: number): Tab {
     edge: [a, b],
     polygon: [pa, pb, pb2, pa2],
     at: [(pa[0] + pb[0]) / 2 + nx * depth * 0.55, (pa[1] + pb[1]) / 2 + ny * depth * 0.55],
+    depth,
   };
 }
 
@@ -368,6 +456,7 @@ export function buildNet(mesh: Mesh, paper: Paper = A4, options: NetOptions = {}
   const checked = validate(mesh);
   if ("refusal" in checked) return checked.refusal;
   const adj = checked.adj;
+  orderByFlatness(mesh, adj);
   const nf = mesh.faces.length;
 
   const roots = (options.roots ?? defaultRoots(nf)).slice(0, MAX_ATTEMPTS);
@@ -411,16 +500,15 @@ export function buildNet(mesh: Mesh, paper: Paper = A4, options: NetOptions = {}
   for (const k of keys) {
     const [a, b] = k.split(",").map(Number);
     const fs = adj.edgeFaces.get(k)! as [number, number];
-    const fold = chosen.treeEdges.has(k);
-    edges.push({ a, b, faces: fs, kind: fold ? "fold" : "cut", label: fold ? 0 : ++label });
+    const inTree = chosen.treeEdges.has(k);
+    const dihedral = adj.dihedral.get(k)!;
+    const kind = inTree ? (dihedral >= FLAT_DEGREES ? "flat" : "fold") : "cut";
+    edges.push({ a, b, faces: fs, kind, label: kind === "cut" ? ++label : 0, dihedral });
   }
 
-  // Tabs (mesh units for now), one per cut edge, on the lower-indexed face.
-  const tabsUnit = edges
-    .filter((e) => e.kind === "cut")
-    .map((e) => makeTab(chosen!.placed[e.faces[0]], e.a, e.b, e.label));
-
-  // Bounding box of faces and tabs, then the largest scale that fits the usable area.
+  // Default tabs in mesh units, only to find the scale: the largest that fits the usable area.
+  const cutEdges = edges.filter((e) => e.kind === "cut");
+  const tabsUnit = cutEdges.map((e) => makeTab(chosen!.placed[e.faces[0]], e.a, e.b, e.label));
   const pts: Vec2[] = [];
   for (const f of chosen.placed) pts.push(...f.p);
   for (const t of tabsUnit) pts.push(...t.polygon);
@@ -428,9 +516,7 @@ export function buildNet(mesh: Mesh, paper: Paper = A4, options: NetOptions = {}
   const maxX = Math.max(...pts.map((p) => p[0]));
   const minY = Math.min(...pts.map((p) => p[1]));
   const maxY = Math.max(...pts.map((p) => p[1]));
-  const w = maxX - minX;
-  const h = maxY - minY;
-  const scale = Math.min(usableW / w, usableH / h);
+  const scale = Math.min(usableW / (maxX - minX), usableH / (maxY - minY));
 
   const tx = (p: Vec2): Vec2 => [(p[0] - minX) * scale, (p[1] - minY) * scale];
   const faces: PlacedFace[] = chosen.placed.map((f) => ({
@@ -438,11 +524,42 @@ export function buildNet(mesh: Mesh, paper: Paper = A4, options: NetOptions = {}
     v: f.v,
     p: [tx(f.p[0]), tx(f.p[1]), tx(f.p[2])],
   }));
-  const tabs: Tab[] = tabsUnit.map((t) => ({
-    ...t,
-    polygon: [tx(t.polygon[0]), tx(t.polygon[1]), tx(t.polygon[2]), tx(t.polygon[3])],
-    at: tx(t.at),
-  }));
+
+  // Tabs in millimetres, then collision handling. A tab is tested against every face except the one it is
+  // attached to, and against every other tab. On a collision it is cut back to 8, 6, then 4 mm (only depths
+  // shorter than its current one); if it still collides it is dropped and recorded. Shortening can only
+  // shrink the bounding box, so the scale found above still fits.
+  const mmEps = 1e-6 * scale * longest;
+  const live: (Tab | null)[] = cutEdges.map((e) => makeTab(faces[e.faces[0]], e.a, e.b, e.label));
+  const defaultDepth = live.map((t) => t!.depth);
+  const collides = (i: number, t: Tab) =>
+    faces.some((f) => f.face !== t.face && polygonsOverlap(t.polygon, f.p, mmEps)) ||
+    live.some((o, j) => j !== i && o !== null && polygonsOverlap(t.polygon, o.polygon, mmEps));
+  const tabsDropped: DroppedTab[] = [];
+  let tabsShortened = 0;
+  live.forEach((t0, i) => {
+    if (!collides(i, t0!)) return;
+    const e = cutEdges[i];
+    let fixed = false;
+    for (const d of TAB_DEPTHS_MM) {
+      if (d >= defaultDepth[i] - 1e-9) continue;
+      const cand = makeTab(faces[e.faces[0]], e.a, e.b, e.label, d);
+      live[i] = cand;
+      if (!collides(i, cand)) { fixed = true; break; }
+    }
+    if (fixed) tabsShortened++;
+    else {
+      live[i] = null;
+      tabsDropped.push({ label: e.label, edge: [e.a, e.b], face: e.faces[0] });
+    }
+  });
+  const tabs = live.filter((t): t is Tab => t !== null);
+
+  const fp: Vec2[] = [];
+  for (const f of faces) fp.push(...f.p);
+  for (const t of tabs) fp.push(...t.polygon);
+  const w = Math.max(...fp.map((p) => p[0])) - Math.min(...fp.map((p) => p[0]));
+  const h = Math.max(...fp.map((p) => p[1])) - Math.min(...fp.map((p) => p[1]));
 
   let area3d = 0;
   for (const f of mesh.faces) area3d += triArea3(mesh.vertices[f[0]], mesh.vertices[f[1]], mesh.vertices[f[2]]);
@@ -456,11 +573,13 @@ export function buildNet(mesh: Mesh, paper: Paper = A4, options: NetOptions = {}
       faces,
       edges,
       tabs,
+      tabsShortened,
+      tabsDropped,
       paper,
       root: chosen.root,
       attempts,
       scale,
-      bbox: { width: w * scale, height: h * scale },
+      bbox: { width: w, height: h },
       area3d,
       area2d,
       areaError: Math.abs(area2d - expected) / expected,
