@@ -225,14 +225,24 @@ to "box-pleated animals".
         inline SVG, Blob-URL download. No pattern is rendered unless `ok` is true and an SVG is present.
       - Verified in headless Chromium: dog 6 leaves, Medium, pattern; beetle refusal, no pattern; no console
         errors; no horizontal overflow at 1280 or 390 px. Screenshots `tools/out/ui-*.png`.
-      - Not done: keyboard and drag-drop were not exercised by script; the refusal text is the pipeline's own
-        and contains solver jargon; `public/ort` (32 MB, imgly runtime) is now unused and not deleted.
+      - Spec change, 2026-11-06 (user request): refusals in plain words. `refusal` is now
+        `{ stage, message, detail }`: `message` is a one-sentence reason plus a one-sentence next step, with
+        no solver terms; `detail` carries the technical cause. Status codes and `ok:false` are unchanged.
+        Verified in the container: beetle -> `assignment` refusal in plain words, `detail` keeps `polys_multiple_ibps`.
+        Other stages reworded but not each triggered by script (contract, tier, flatfold, solver).
+      - Not done: keyboard and drag-drop were not exercised by script; `public/ort` (32 MB, imgly runtime) is now unused and not deleted.
 - [ ] 5.4 Printable pattern with legend, paper size, step count, time estimate
 - [ ] 5.5 Mobile at 390 px; deploy to a stable public URL
       - Spec change, 2026-11-06 (user decision): deployment requires a container host able to run
         the solver binary (a Docker image that builds `solver/` with cargo and runs `next start`),
         not a serverless platform. This is a deliberate trade against the original "no image leaves
         the device" claim; N3 now reads "no photograph is stored".
+      - Container done (spec change, 2026-11-06, user request): `Dockerfile` (cargo release build,
+        `next build` with `output: "standalone"`, runtime of server + static + solver,
+        `FOLD_SOLVER=/app/bin/fold-solver`, runs as `node`, port 3000) and `.dockerignore`. Image 386 MB
+        on disk, 93.8 MB content size. Verified by `docker build` and `docker run`: dog 200 ok:true, 6 leaves,
+        medium, 55 vertices, 108 creases; text/plain 415; beetle 200 ok:false. Not done: the public URL.
+        `public/ort` (unused) is not copied into the image.
 
 ## Phase 6 — Ship (28 Nov–2 Dec)
 

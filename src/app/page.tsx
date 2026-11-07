@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 /** The subset of the POST /api/fold response this screen reads. */
 interface FoldResponse {
   ok: boolean;
-  refusal: { stage: string; message: string } | null;
+  refusal: { stage: string; message: string; detail: string | null } | null;
   image: { width: number; height: number; analysedWidth: number; analysedHeight: number } | null;
   tree: {
     nodes: { id: number; x: number; y: number; degree: number }[];

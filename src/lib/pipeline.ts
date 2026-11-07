@@ -354,6 +354,7 @@ function runSolver(
   });
 }
 
+/** Technical meaning of each solver status. Goes in `refusal.detail`, never in the message. */
 const CP_STATUS_REASON: Record<string, string> = {
   edges_too_short: "an edge is shorter than the solver's 0.01 minimum",
   polys_not_valid: "the polygons from the packing are not valid",
@@ -363,6 +364,22 @@ const CP_STATUS_REASON: Record<string, string> = {
   facets_not_valid: "the facets are not valid",
   not_local_root_connectable: "the fold order cannot be connected to a local root",
 };
+
+const SEPARATE_LIMBS = "Try a photograph where the limbs are longer and stand clear of the body and of each other.";
+
+/** Reason and next step for a solver status that produced no crease pattern, in plain words. */
+function plainNoPattern(status: string | null, failed: boolean): string {
+  if (!failed && status === "edges_too_short") {
+    return (
+      "One limb in this shape is too short, next to the others, to fold as a flap of its own. " +
+      "Try a photograph where the small limbs are larger, or one that hides them."
+    );
+  }
+  if (failed) {
+    return `The folding calculation could not fit this shape onto one square of paper. ${SEPARATE_LIMBS}`;
+  }
+  return `This shape could not be turned into a complete crease pattern. ${SEPARATE_LIMBS}`;
+}
 
 
 export const DEFAULT_SOLVER_RELATIVE = "solver/target/release/fold-solver";
@@ -393,11 +410,22 @@ export interface PipelineOptions {
   debugImages?: boolean;
 }
 
+/**
+ * Why the pipeline declined. `message` is what a teacher reads: a one-sentence reason and a
+ * one-sentence next step, no solver terms. `detail` is the technical cause, for debugging; the
+ * interface must not show it as the message.
+ */
+export interface Refusal {
+  stage: string;
+  message: string;
+  detail: string | null;
+}
+
 export interface PipelineResult {
   /** Same meaning as the script's exit code 0: solved, built, valid FOLD, M/V assigned, flat-foldable. */
   ok: boolean;
   /** Why `ok` is false, when the pipeline declined. Null on success and on a fault. */
-  refusal: { stage: string; message: string } | null;
+  refusal: Refusal | null;
   /** The pipeline could not run at all (solver missing, crashed or unparseable). Not the subject's fault. */
   fault: string | null;
   log: LogLine[];
@@ -445,8 +473,8 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
     r.totalMs = performance.now() - t0;
     return r;
   };
-  const refuse = (stage: string, message: string, line: string) => {
-    r.refusal = { stage, message };
+  const refuse = (stage: string, message: string, line: string, detail: string | null = null) => {
+    r.refusal = { stage, message, detail };
     say(line);
     return finish();
   };
@@ -474,6 +502,7 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
       "mask",
       "I can't find a single object. Try a plainer background.",
       "REFUSED    I can't find a single object. Try a plainer background. (R1.3: coverage outside 2%..90%)",
+      `silhouette covers ${(m.coverage * 100).toFixed(1)}% of the frame; allowed 2% to 90%`,
     );
   }
 
@@ -505,8 +534,9 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
   if (tree.nodes.length < 2 || tree.edges.length === 0) {
     return refuse(
       "tree",
-      "This shape has no limbs to fold.",
+      "This shape has no limbs to fold. Try an animal or an object with a clear outline.",
       "REFUSED    This shape has no limbs to fold. (tree has fewer than two nodes)",
+      `tree has ${tree.nodes.length} nodes and ${tree.edges.length} edges`,
     );
   }
 
@@ -523,7 +553,12 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
       solverTree = treeContraction.tree;
     } catch (e) {
       const msg = (e as Error).message;
-      return refuse("contract", msg, `REFUSED    ${msg} (edge contraction, threshold ${contractThreshold})`);
+      return refuse(
+        "contract",
+        `Once the limbs too small to fold are left out, nothing is left to fold. ${SEPARATE_LIMBS}`,
+        `REFUSED    ${msg} (edge contraction, threshold ${contractThreshold})`,
+        msg,
+      );
     }
     const c = treeContraction;
     r.contraction = c;
@@ -552,7 +587,13 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
     say(`           ${t.tier.padEnd(8)} ${String(t.budget).padStart(6)}  ${String(t.leaves).padStart(6)}  ${String(t.dropped).padStart(7)}  ${t.representable}`);
   }
   if (min.tier === null) {
-    return refuse("tier", min.reason, `REFUSED    ${min.reason}`);
+    return refuse(
+      "tier",
+      `This subject has ${min.requiredLeaves} limbs, and this tool folds at most twelve from one square. ` +
+        "Try a simpler subject, or a photograph from an angle that hides some of the limbs.",
+      `REFUSED    ${min.reason}`,
+      min.reason,
+    );
   }
 
   // 4 + 5. Solver. When contraction changed the tree, the original is run first for comparison.
@@ -632,7 +673,11 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
     if (ff.failEither > 0) {
       say(`             ${ff.failEither} of ${ff.interiorVertices} interior vertices are not locally flat-foldable as drawn.`);
       flatFoldable = false;
-      r.refusal = { stage: "flatfold", message: `${ff.failEither} of ${ff.interiorVertices} interior vertices are not locally flat-foldable as drawn.` };
+      r.refusal = {
+        stage: "flatfold",
+        message: `Some of the folds in this pattern would not lie flat, so it would not fold. ${SEPARATE_LIMBS}`,
+        detail: `${ff.failEither} of ${ff.interiorVertices} interior vertices are not locally flat-foldable as drawn.`,
+      };
     }
     if (!assigned) {
       const msg =
@@ -640,18 +685,32 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
         `The SVG and the FOLD are marked "not computed"; do not fold from them.`;
       say(`REFUSED    ${msg}`);
       printable = false;
-      r.refusal = { stage: "assignment", message: msg };
+      r.refusal = {
+        stage: "assignment",
+        message:
+          "This shape produced a crease pattern with no mountain or valley folds, so it cannot be followed. " +
+          "Try an animal with longer, more separated legs.",
+        detail: msg,
+      };
     }
   } else {
     const why = report.error
       ? `the solver failed: ${report.error}`
       : (CP_STATUS_REASON[report.cp_status ?? ""] ?? `the solver returned no crease pattern (cp_status ${report.cp_status})`);
-    r.refusal = { stage: "solver", message: `No crease pattern for this tree: ${why}.` };
+    r.refusal = {
+      stage: "solver",
+      message: plainNoPattern(report.cp_status, !!report.error),
+      detail: `No crease pattern for this tree: ${why}.`,
+    };
     say(`REFUSED    No crease pattern for this tree: ${why}. Nothing to print.`);
   }
   r.ok = report.ok && report.cp_built && foldValid && printable && flatFoldable;
   if (!r.ok && !r.refusal) {
-    r.refusal = { stage: "solver", message: "The solver did not report a feasible, valid pattern." };
+    r.refusal = {
+      stage: "solver",
+      message: `The folding calculation did not produce a pattern that can be followed. ${SEPARATE_LIMBS}`,
+      detail: `solver ok=${report.ok} cp_built=${report.cp_built} foldValid=${foldValid} (cp_status ${report.cp_status})`,
+    };
   }
   const total = performance.now() - t0;
   const steps = Object.entries(lap).map(([k, v]) => `${k} ${v.toFixed(0)} ms`).join(", ");

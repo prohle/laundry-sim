@@ -1,0 +1,8 @@
+node_modules
+.next
+solver/target
+tools/out
+_local
+fixtures
+.git
+*.tsbuildinfo

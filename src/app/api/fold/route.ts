@@ -8,6 +8,7 @@
  *   413  body larger than 10 MiB
  *   200  { ok: true, ... }   a printable pattern, in `pattern`
  *   200  { ok: false, refusal: { stage, message }, ... }
+ *        `message` is plain words (a reason and a next step) for the user; `detail` is the technical cause.
  *        the pipeline ran and declined (no object, no limbs, below the minimum tier, no mountain/valley, ...).
  *        `tree`, `minimum` and `tiers` are still returned where they exist. `pattern` is null:
  *        a pattern is only returned when it is printable.
