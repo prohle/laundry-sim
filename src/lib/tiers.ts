@@ -84,6 +84,22 @@ export function rankLeaves(tree: SkeletonTree, significance: Record<number, numb
  * Each dropped leaf's branch is removed back to the nearest junction that still leads to a kept
  * leaf. A junction left with two edges is removed and its edges joined into one whose length is
  * the straight-line distance between the new endpoints (the convention extractTree uses).
+ *
+ * DESIGN NOTE, chord versus path (reviewed 2026-11-06, behaviour deliberately unchanged):
+ * an edge length here is a CHORD, not the length along the limb. That is an approximation, and
+ * for paper it is an UNDERESTIMATE: a flap consumes the length along the limb. It is the same
+ * convention extractTree uses (skeleton.ts step 6), so splicing does not introduce it; it only
+ * repeats it, and also cuts the corner at the spliced junction (chord <= sum of the two edges,
+ * equal only when the two edges are collinear). The chord is always <= the path.
+ *   - Cost of a bend: a limb bent through a circular arc of angle a has chord/path = sin(a/2)/(a/2):
+ *     0.90 at 90 deg, 0.64 at 180 deg (a semicircle), 0.30 at 270 deg, 0 when it closes.
+ *   - A curled tail is therefore the worst case: the tree gives it a short, stubby flap, the
+ *     solver packs it as short, and the folded tail comes out shorter than the animal's.
+ *   - Measured on fixtures/tuatara.jpg (curved tail): chord 162 px against 221 px of skeleton
+ *     path (diagonals counted as sqrt 2), so the tail is 27% short. Straight limbs lose nothing.
+ * Not changed because the tree is a stick figure and the user can lengthen an edge by hand
+ * (R2.3, task 3.4). If it is changed, carry the pixel path length on each TreeEdge and SUM it
+ * across a splice; extractTree already measures it (BranchRecord.length) and then discards it.
  * Surviving nodes keep their ids and coordinates, so tiers can be compared by id. A tree with
  * `budget` or fewer leaves is returned unchanged (as a copy).
  */
