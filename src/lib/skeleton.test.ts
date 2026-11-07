@@ -244,11 +244,11 @@ test("significance: a short bump on the body edge scores about 1 + h/R, so 1.0 k
   assertTree(t15);
 });
 
-test("significance runs before the pixel threshold; both can be set; the output shape is unchanged", () => {
+test("significance runs before the pixel threshold; both can be set; the output shape is as documented", () => {
   const a = extractTree(bodyLegBump(), { significanceThreshold: 0, spurThreshold: 0 });
   const b = extractTree(bodyLegBump(), { significanceThreshold: 0, spurThreshold: 30 });
   assert.ok(b.leaves < a.leaves, "the pixel threshold still prunes on its own");
-  assert.deepEqual(Object.keys(extractTree(bodyLegBump())).sort(), ["edges", "frame", "leaves", "nodes"]);
+  assert.deepEqual(Object.keys(extractTree(bodyLegBump())).sort(), ["edges", "frame", "leafSignificance", "leaves", "nodes"]);
   assert.deepEqual(extractTree(bodyLegBump()), extractTree(bodyLegBump()), "deterministic");
 });
 

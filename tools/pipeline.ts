@@ -26,6 +26,7 @@ import jpeg from "jpeg-js";
 import pngjs from "pngjs";
 import { extractTree, DEFAULT_SIGNIFICANCE_THRESHOLD } from "../src/lib/skeleton.ts";
 import type { SkeletonTree, BranchRecord } from "../src/lib/skeleton.ts";
+import { minimumTier, tierReport } from "../src/lib/tiers.ts";
 
 const { PNG } = pngjs;
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -361,6 +362,21 @@ function main(): number {
   for (const r of kept) console.log(`             ${fmt(r)}`);
   if (tree.nodes.length < 2 || tree.edges.length === 0) {
     console.log("REFUSED    This shape has no limbs to fold. (tree has fewer than two nodes)");
+    return 1;
+  }
+
+  // 3b. Minimum tier (R3.3, R3.4). Uses the significance-pruned tree WITHOUT the flap budget:
+  // a tree already cut to maxLeaves can never say it needs more than maxLeaves.
+  const min = minimumTier(sigOnly);
+  console.log(`minimum    ${min.requiredLeaves} significant leaves -> ${min.tier ?? "none"}. ${min.reason}`);
+  console.log("tiers      tier     budget  leaves  dropped  representable");
+  for (const r of tierReport(sigOnly)) {
+    console.log(
+      `           ${r.tier.padEnd(8)} ${String(r.budget).padStart(6)}  ${String(r.leaves).padStart(6)}  ${String(r.dropped).padStart(7)}  ${r.representable}`,
+    );
+  }
+  if (min.tier === null) {
+    console.log(`REFUSED    ${min.reason}`);
     return 1;
   }
 

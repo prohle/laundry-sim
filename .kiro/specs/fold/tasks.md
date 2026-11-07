@@ -110,7 +110,14 @@ to "box-pleated animals".
         point, not a universal value. The flap budget (`maxLeaves`) now drops the lowest-significance
         leaf first, ties by shorter pixel length, instead of the shortest by pixels. At 2.0 / budget 12:
         beetle 37 -> 8 -> 8 leaves, dog 18 -> 6 -> 6; both solve and build a crease pattern.
-- [ ] 3.3 Minimum-tier computation from the tree
+- [x] 3.3 Minimum-tier computation from the tree
+      - `src/lib/tiers.ts`: `rankLeaves`, `treeForTier`, `minimumTier`, `tierReport`. Budgets 4/6/8/12.
+        `extractTree` now returns `leafSignificance` (the existing length/radius measure), which
+        tiers.ts reads. 12 new tests pass; tiers are nested because every tier takes the top-k of one ranking.
+      - `minimumTier` must be given the tree *without* a flap budget, or it can never exceed 12.
+      - Pipeline: dog 6 leaves -> Medium (correct). Beetle 8 leaves -> Hard, which is wrong: the design
+        says a beetle needs ten. Cause: the 2.0 threshold was calibrated on the dog, and the antennae are
+        lost at the mask. The minimum tier is only as good as the leaf count under it.
 - [ ] 3.4 Human-in-the-loop correction: drag, lengthen, delete
 - [ ] 3.5 Refusal states: no limbs, too many limbs, packing fails
 

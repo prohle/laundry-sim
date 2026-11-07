@@ -113,6 +113,12 @@ export interface SkeletonTree {
   leaves: number;
   /** Added so the tree can be drawn over the photograph (requirement R2.2). */
   frame: TreeFrame;
+  /**
+   * Significance (branch length / junction radius, the measure used by pruning) of the branch
+   * ending at each leaf, keyed by leaf node id, measured on the tree as returned. Consumed by
+   * src/lib/tiers.ts. Plain object so the tree still round-trips through JSON.
+   */
+  leafSignificance: Record<number, number>;
 }
 
 // Neighbour offsets in Zhang-Suen circular order: P2..P9 = N, NE, E, SE, S, SW, W, NW.
@@ -563,7 +569,9 @@ export function extractTree(input: SkeletonInput, options: SkeletonOptions = {})
       }
     }
   }
-  const empty: SkeletonTree = { nodes: [], edges: [], leaves: 0, frame: { originX: 0, originY: 0, scale: 1 } };
+  const empty: SkeletonTree = {
+    nodes: [], edges: [], leaves: 0, frame: { originX: 0, originY: 0, scale: 1 }, leafSignificance: {},
+  };
   if (maxX < minX) return empty;
 
   const significanceThreshold = options.significanceThreshold ?? DEFAULT_SIGNIFICANCE_THRESHOLD;
@@ -636,10 +644,22 @@ export function extractTree(input: SkeletonInput, options: SkeletonOptions = {})
     y: (p.y - y0) / scale,
     degree: deg[id],
   }));
+
+  // Significance of the branch under each surviving leaf, from the final graph. A lone
+  // segment has two leaves; both get the segment's value.
+  const leafSignificance: Record<number, number> = {};
+  const gdeg = degrees(g);
+  g.edges.forEach((e, i) => {
+    if (!e.alive || (gdeg[e.a] !== 1 && gdeg[e.b] !== 1)) return;
+    const s = branchRecord(g, dt, W, H, gdeg, i, "kept").significance;
+    if (gdeg[e.a] === 1) leafSignificance[newId.get(e.a)!] = s;
+    if (gdeg[e.b] === 1) leafSignificance[newId.get(e.b)!] = s;
+  });
   return {
     nodes,
     edges,
     leaves: deg.filter((d) => d === 1).length,
     frame: { originX: x0, originY: y0, scale },
+    leafSignificance,
   };
 }
