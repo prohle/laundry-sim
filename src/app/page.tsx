@@ -181,7 +181,7 @@ export default function Home() {
 
       <main className="screen">
         <p className="supported">
-          One to four photographs of the same object, from different angles. Four to six flaps in practice, one square, no cuts. Only tiers that fold are offered.
+          One to four photographs of one object with distinct protrusions, from different angles. Four to six flaps in practice, one square, no cuts. Only tiers that fold are offered.
         </p>
 
         {(view.kind === "empty" || view.kind === "staged") && (
@@ -263,7 +263,7 @@ export default function Home() {
               <div className="processing-overlay" role="status">
                 <div className="processing-spinner" />
                 <span className="processing-label">
-                  {view.items.length > 1 ? `Reading ${view.items.length} views` : "Finding the limbs and packing the paper"}
+                  {view.items.length > 1 ? `Reading ${view.items.length} views` : "Finding the protrusions and packing the paper"}
                 </span>
               </div>
             </div>
@@ -499,7 +499,7 @@ function Outcome({
               </p>
               {data.contraction && data.contraction.dropped.length > 0 && (
                 <p className="edit-bar__note" role="status">
-                  Before folding, {data.contraction.dropped.length === 1 ? "one limb was" : `${data.contraction.dropped.length} limbs were`} left
+                  Before folding, {data.contraction.dropped.length === 1 ? "one protrusion was" : `${data.contraction.dropped.length} protrusions were`} left
                   out because {data.contraction.dropped.length === 1 ? "it was" : "they were"} too short next to the others to fold as
                   a flap. The pattern has {data.tree?.leaves ?? "—"} flaps, not {tree?.leaves ?? "—"}. Lengthen the short limb to keep it.
                 </p>

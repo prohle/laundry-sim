@@ -173,7 +173,7 @@ export function components(mask: Uint8Array, w: number, h: number, want: number)
 export const MULTI_OBJECT_RATIO = 0.15;
 /** Largest component area / bounding-box area above this is "nearly a rectangle". */
 export const RECTANGULARITY_LIMIT = 0.92;
-/** A tree with fewer leaves than this has no limbs to fold. */
+/** A tree with fewer leaves than this has no protrusions to fold. */
 export const MIN_LEAVES = 3;
 
 export interface MaskAssessment {
@@ -472,14 +472,14 @@ const CP_STATUS_REASON: Record<string, string> = {
   not_local_root_connectable: "the fold order cannot be connected to a local root",
 };
 
-const SEPARATE_LIMBS = "Try a photograph where the limbs are longer and stand clear of the body and of each other.";
+const SEPARATE_LIMBS = "Try a photograph where the protrusions are longer and stand clear of the body and of each other.";
 
 /** Reason and next step for a solver status that produced no crease pattern, in plain words. */
 function plainNoPattern(status: string | null, failed: boolean): string {
   if (!failed && status === "edges_too_short") {
     return (
       "One limb in this shape is too short, next to the others, to fold as a flap of its own. " +
-      "Try a photograph where the small limbs are larger, or one that hides them."
+      "Try a photograph where the small protrusions are larger, or one that hides them."
     );
   }
   if (failed) {
@@ -747,7 +747,7 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
   if (tree.nodes.length < 2 || tree.edges.length === 0) {
     return refuse(
       "tree",
-      "This shape has no limbs to fold. Try an animal or an object with a clear outline.",
+      "This shape has no protrusions to fold. Try an object with a clear outline and parts that stand out from it.",
       "REFUSED    This shape has no limbs to fold. (tree has fewer than two nodes)",
       `tree has ${tree.nodes.length} nodes and ${tree.edges.length} edges`,
     );

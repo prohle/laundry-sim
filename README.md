@@ -1,13 +1,13 @@
 # Fold
 
-Fold takes a photograph of a four-legged animal on a plain background, derives a stick-figure tree
-of its limbs, and produces an origami crease pattern for one square of paper. It tells you the
+Fold takes a photograph of an object with distinct protrusions on a plain background, derives a
+stick-figure tree of those protrusions, and produces an origami crease pattern for one square of paper. It tells you the
 smallest complexity tier that can hold the subject before you print, and it refuses when it cannot
 produce a pattern with a mountain/valley assignment.
 
 > A photograph becomes a foldable crease pattern, at the complexity you choose.
 
-Category: Frankenstein. Supported class: animals with visible limbs on a plain background, one
+Category: Frankenstein. Supported class: objects with distinct protrusions on a plain background, one
 square, no cuts. In practice four to six flaps: on the three animal fixtures, Medium (six flaps)
 is the only tier that folds. Hard and Expert are attempted and refused, with the reason shown.
 
@@ -27,7 +27,7 @@ becomes the paper, and the output leaves the screen.
 1. You upload one PNG or JPEG (up to 10 MiB).
 2. The photograph is thresholded to a silhouette and thinned to a skeleton. The significance
    threshold is not fixed: thirteen candidate trees are extracted and each is scored by how well
-   its limbs explain the silhouette, minus a penalty per leaf. The best-scoring tree is drawn
+   its protrusions explain the silhouette, minus a penalty per leaf. The best-scoring tree is drawn
    over your photograph. No human chooses per image.
 3. The minimum tier is computed from the number of significant flaps and shown with the reason:
    Easy 4, Medium 6, Hard 8, Expert 12 flaps. Below the minimum, the tier is not offered. Every
@@ -70,7 +70,7 @@ All figures below are from runs in this repository. Conditions are stated.
 
 ## Limits
 
-- Supported class: animals on a plain background with visible limbs. Three fixtures pass without
+- Supported class: objects with distinct protrusions on a plain background. Three fixtures pass without
   human help: the bush dog, the snapping turtle and the tuatara, each at 6 leaves and Medium. A
   fourth, the beetle, is refused.
 - The selection constant (lambda = 0.03) is fitted to four images. A single value satisfies all
