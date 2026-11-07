@@ -247,6 +247,26 @@ to "box-pleated animals".
       - Cost: up to six candidates at ~2-3 s each; the squid took 1.2 s because
         most were refused early. N1 (20 s) is not checked for a six-candidate image.
 
+- [x] 3.12 `src/lib/views.ts`: `analyseViews`, one to four photographs of one subject
+      (spec change, added 2026-11-06, user request; R1.1, R1.4)
+      - Each view runs through `analyseImage`. Chosen: among views with `ok`, most leaves, then the
+        penalised score (IoU - lambda * leaves, from that view's own sweep; a tiebreak only because it is
+        scored against each view's own mask). If none folds, the same order picks which to show, `chosen` false.
+        Every view is reported: leaves, tier, folds, chosen, score, refusal stage.
+- [x] 3.13 Disagreement warning (R1.5): `disagreementMessage` names every count and the chosen view.
+      Fires when counts differ or a view reached no tree; silent when all agree.
+- [x] 3.14 `/api/fold` accepts repeated `image` parts (max 4) in multipart without a `tree`, and returns
+      `views` and `disagreement`.
+- [~] 3.15 Test `src/lib/views.test.ts`: `fixtures/snapping-turtle.jpg` cropped (not rotated) to its right
+      40%, written to `tools/out/turtle-crop.png` (not a fixture), paired with the full image.
+      - Observed, leaves by crop start (fraction of width removed from the left): 0: 6, ok; 0.3: 7, fails
+        at solver; 0.42: 6, ok; 0.5: 5, fails flatfold; 0.6: 4, fails flatfold; 0.7: 3, ok. Not monotone: the
+        cut edge adds leaves of its own, so the first crop tried (0.42, rear leg already out) found 6, the
+        same as the full image, and the test as specified failed. 0.6 was chosen after seeing this table.
+      - At 0.6: view 1 (crop) 4 leaves, easy, does not fold (flatfold); view 2 (full) 6 leaves, medium, folds,
+        chosen. Warning fired.
+      - Not done: the UI does not offer multiple photographs; `next build` not run; one subject only.
+
 **Gate, 20 Nov:** three subjects produce trees that a human accepts after at most two corrections.
 
 ## Phase 4 — Fold it (20–25 Nov)

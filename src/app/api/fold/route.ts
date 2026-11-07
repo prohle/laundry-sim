@@ -29,6 +29,7 @@
 import type { NextRequest } from "next/server";
 import { sniffImage, ImageDecodeError } from "@/lib/pipeline";
 import { analyseImage } from "@/lib/segment";
+import { analyseViews, MAX_VIEWS, type ViewsAnalysis } from "@/lib/views";
 import { validateEditedTree } from "@/lib/tree-validate";
 import type { SkeletonTree } from "@/lib/skeleton";
 
@@ -85,6 +86,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   let bytes: Uint8Array = raw;
   let editedTree: SkeletonTree | null = null;
+  let extra: Uint8Array[] = [];
   if (multipart) {
     let form: FormData;
     try {
@@ -92,11 +94,21 @@ export async function POST(request: NextRequest): Promise<Response> {
     } catch {
       return json({ error: "bad_request", message: "The multipart form could not be read." }, 400);
     }
-    const image = form.get("image");
-    if (!(image instanceof Blob)) {
+    const images = form.getAll("image").filter((x): x is File => x instanceof Blob);
+    if (images.length === 0) {
       return json({ error: "bad_request", message: "The form needs an `image` file part." }, 400);
     }
-    bytes = new Uint8Array(await image.arrayBuffer());
+    if (images.length > MAX_VIEWS) {
+      return json({ error: "bad_request", message: `Send at most ${MAX_VIEWS} photographs of one subject.` }, 400);
+    }
+    bytes = new Uint8Array(await images[0].arrayBuffer());
+    if (images.length > 1) {
+      if (form.get("tree") !== null) {
+        return json({ error: "bad_request", message: "An edited tree applies to one photograph; send one image." }, 400);
+      }
+      extra = [];
+      for (const im of images.slice(1)) extra.push(new Uint8Array(await im.arrayBuffer()));
+    }
     const treeField = form.get("tree");
     if (treeField !== null) {
       let parsed: unknown;
@@ -114,9 +126,14 @@ export async function POST(request: NextRequest): Promise<Response> {
     return json({ error: "unsupported_media_type", message: "The body is not a PNG or JPEG image." }, 415);
   }
 
-  let result;
+  if (extra.some((b) => sniffImage(b) === null)) {
+    return json({ error: "unsupported_media_type", message: "Every photograph must be a PNG or JPEG image." }, 415);
+  }
+  let result: Awaited<ReturnType<typeof analyseImage>> & Partial<ViewsAnalysis>;
   try {
-    result = await analyseImage(bytes, editedTree ? { tree: editedTree } : {});
+    result = extra.length
+      ? await analyseViews([bytes, ...extra])
+      : await analyseImage(bytes, editedTree ? { tree: editedTree } : {});
   } catch (e) {
     if (e instanceof ImageDecodeError) {
       return json({ error: "unsupported_media_type", message: "The image could not be decoded." }, 415);
@@ -164,6 +181,9 @@ export async function POST(request: NextRequest): Promise<Response> {
       // Every object found (task 3.11), best first; the top-level fields above describe candidates[0].
       candidates: result.candidates,
       segmentation: result.segmentation,
+      // Several photographs (R1.4, R1.5): every view, and the warning if they disagree. Null with one photograph.
+      views: result.views ?? null,
+      disagreement: result.disagreement ?? null,
       timingsMs: result.timingsMs,
       totalMs: result.totalMs,
     },

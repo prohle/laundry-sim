@@ -41,10 +41,20 @@ curved creases; robot folding (January).
 
 ### R1 — Capture
 
-- R1.1 Accept one photograph from a phone camera or a file.
+- R1.1 Accept one to four photographs of the same subject from a phone camera or a file.
+  - Spec change, 2026-11-06 (user request): was "one photograph".
 - R1.2 Segment the subject and extract its silhouette.
 - R1.3 Refuse if the silhouette covers more than 90% or less than 2% of the frame, or if it has
   no distinguishable limbs. It must not guess.
+- R1.4 With more than one photograph, analyse each view on its own. Among the views that fold, use
+  the one with the most leaves; the penalised score breaks ties. Report every view with its leaf
+  count, minimum tier and whether it folds.
+  - Spec change, 2026-11-06 (user request). Wording reconstructed from the user's description; the
+    original draft was not available to the builder.
+- R1.5 If the views do not find the same number of flaps, or one does not fold, say so in plain
+  words and name each count ("view 1 found 4 flaps ... view 2 found 6 flaps"). A view that hides a
+  limb finds fewer flaps; the product does not average or merge views.
+  - Spec change, 2026-11-06 (user request). Same note as R1.4.
 
 ### R2 — Derive a stick figure
 
