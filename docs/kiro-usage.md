@@ -112,11 +112,18 @@ fixture's result in about half a second instead of running the CLI and reading i
 | `solver` unit | 9 | JSON to `.tmd5`, convergence on stars, chains and a four-legged tree, coordinate normalisation |
 | `solver/tests/parity.rs` | 1 | scale equal to the C++ reference on 3 of 3 models |
 
-These are example-based unit tests. There is no property-testing library in the project (no
-`fast-check` or similar). The tier-nesting test and the budget loop in `tiers.test.ts` check an
-invariant over several sizes, which is the closest we have to the property tests the design
-promises. The JSON round-trip property and the determinism snapshot tests from `design.md` are
-not written. The golden test against a published crease pattern is not done.
+Property-based tests use `fast-check`: nine properties and 2,406 cases, run inside `npm test`
+alongside the example-based tests. They cover tree invariants, tier monotonicity, contraction, the
+`.tmd5` round trip, and pipeline determinism on both fixtures and generated silhouettes.
+
+They found three defects the example-based tests had missed:
+
+- a tree with subnormal coordinates hangs `treemaker-core`'s parser for over 300 s;
+- the solver spawn had no timeout, so a pathological tree hung the API request;
+- splicing used the chord, which collapsed two coincident nodes to a zero-length edge.
+
+The golden test against a published crease pattern is still not done, because no published
+reference with vertex and edge data has been found.
 
 ## What Kiro did well
 
