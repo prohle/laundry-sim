@@ -138,6 +138,23 @@ to "box-pleated animals".
         Beetle: `edges_too_short` -> `polys_multiple_ibps`. A pattern of 73 vertices and 147 creases
         is built, but every crease is `F`: no mountain/valley, so the pipeline refuses to call it
         printable. Dog: no short edge, `has_full_cp` before and after.
+- [x] 3.8 `src/lib/pipeline.ts`: the whole pipeline as one function, bytes in, geometry out
+      (spec change, added 2026-11-06, user decision: server-side architecture, see N3)
+      - No file writes and no console output inside the module. `tools/pipeline.ts` becomes a thin
+        wrapper (reads the file, prints the log, writes the debug files); its output is unchanged.
+      - Done. Dog and beetle run before and after: same exit codes (0, 1), same stdout apart from
+        the timing line and Node's PID in its module warning, and all 12 debug files byte-identical.
+        The solver now runs through async `spawn`, so the server is not blocked. `npm test`: 52 pass.
+- [x] 3.9 `src/app/api/fold/route.ts`: `POST /api/fold`
+      (spec change, added 2026-11-06, user decision)
+      - 415 unsupported type, 413 too large, 200 with `ok:false` for a refusal, 500 for a fault.
+        `FOLD_SOLVER` names the solver binary. Smoke test on `fixtures/bush-dog.png` and a text file.
+      - Input is the raw image as the body with Content-Type image/png or image/jpeg, capped at
+        10 MiB; type is also checked by magic bytes. A pattern is returned only when `ok` is true.
+      - Smoke test `tools/smoke-fold-api.ts` against `next dev`: dog 200 ok:true (medium, 55
+        vertices, 108 creases); text/plain 415; text typed as png 415; 11 MiB typed as png 413;
+        beetle 200 ok:false (stage `assignment`, pattern null); `FOLD_SOLVER` unset-to-bad 500.
+        Not tested: `next build` / `next start`, a corrupt-but-valid-magic image, concurrent requests.
 
 - [x] 3.3 Minimum-tier computation from the tree
       - `src/lib/tiers.ts`: `rankLeaves`, `treeForTier`, `minimumTier`, `tierReport`. Budgets 4/6/8/12.
@@ -201,6 +218,10 @@ to "box-pleated animals".
         still reported.
 - [ ] 5.4 Printable pattern with legend, paper size, step count, time estimate
 - [ ] 5.5 Mobile at 390 px; deploy to a stable public URL
+      - Spec change, 2026-11-06 (user decision): deployment requires a container host able to run
+        the solver binary (a Docker image that builds `solver/` with cargo and runs `next start`),
+        not a serverless platform. This is a deliberate trade against the original "no image leaves
+        the device" claim; N3 now reads "no photograph is stored".
 
 ## Phase 6 — Ship (28 Nov–2 Dec)
 

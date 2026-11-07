@@ -55,7 +55,8 @@ origami in a sentence.
 ## The solver
 
 TreeMaker-grade means circle/river packing plus molecule generation. It is not being reimplemented.
-Candidates, in order of fit for a browser product:
+Candidates, in order of fit for a browser product (spec change, 2026-11-06: the chosen solver is a
+native binary run server-side, see "Deployment"):
 
 | Candidate | Language | Fit | Risk |
 |---|---|---|---|
@@ -79,6 +80,14 @@ against a published reference (tasks 1.3 and 1.4).
 `.tmd5` text format, so a tree-to-`.tmd5` serialiser is required (task 1.9).
 
 The chosen solver is treemaker-core. The C++ reference remains the fallback.
+
+### Deployment (spec change, 2026-11-06, user decision)
+
+The pipeline is an HTTP API (`POST /api/fold`), not a browser library. The browser cannot run the
+Rust solver and a WASM port is not a 28-day item. The photograph is uploaded, processed in memory
+for the duration of the request and discarded (N3). The solver binary is located by the
+`FOLD_SOLVER` environment variable, defaulting to `solver/target/release/fold-solver`. Hosting
+therefore needs a container host that can run that binary; see task 5.5.
 
 ### Licensing, verified 2026-11-06
 

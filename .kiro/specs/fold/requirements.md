@@ -98,7 +98,13 @@ curved creases; robot folding (January).
 
 - N1 First crease pattern within 20 seconds of upload on a laptop.
 - N2 Works at 390 px width.
-- N3 No photograph leaves the device.
+- N3 No photograph is stored. Each request processes the image in memory for the duration of the
+  request and discards it. Nothing is written to disk and nothing is logged. The response contains
+  geometry only.
+  - Spec change, 2026-11-06 (user decision): replaces "No photograph leaves the device". The
+    solver is a Rust binary and a WASM port is not a 28-day item, so the pipeline runs on a
+    server and the photograph is uploaded to it. This is a deliberate trade against the
+    original claim; the interface must not say the photograph stays on the device.
 - N4 The tree and the crease pattern are serialisable and versioned, so a January machine
   renderer can consume them.
 
