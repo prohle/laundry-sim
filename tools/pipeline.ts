@@ -32,6 +32,7 @@ import type { ContractResult } from "../src/lib/contract.ts";
 import { cpToSvg, foldDistribution } from "./cp-to-svg.ts";
 import type { Cp } from "./cp-to-svg.ts";
 import { cpToFold, validateFold } from "./fold.ts";
+import { checkFlatFoldable } from "../src/lib/flatfold.ts";
 
 const { PNG } = pngjs;
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -474,6 +475,7 @@ function main(): number {
   writeFileSync(join(outDir, `${stem}.solver.json`), JSON.stringify(report) + "\n");
   let foldValid = false;
   let printable = true;
+  let flatFoldable = true;
   if (report.cp && report.cp_built) {
     const dist = foldDistribution(report.cp);
     const paper = Number(arg("paper", "150"));
@@ -497,6 +499,24 @@ function main(): number {
     for (const m of check.errors) console.log(`             error: ${m}`);
     for (const m of check.warnings) console.log(`             warning: ${m}`);
     foldValid = check.ok;
+
+    // Task 2.4: local flat-foldability. Reported, never repaired.
+    const ff = checkFlatFoldable(report.cp);
+    console.log(
+      `flatfold   ${ff.interiorVertices} interior vertices checked (${ff.skippedBoundary} boundary skipped, ${ff.skippedLowDegree} of degree < 3 skipped); ` +
+        `both pass ${ff.passBoth}; Kawasaki fail ${ff.failKawasaki} (${ff.oddDegree} odd degree), largest residual ${ff.maxResidual.toExponential(2)} rad at tolerance ${ff.tolerance}; ` +
+        `Maekawa fail ${ff.failMaekawa} (${ff.noAssignment} with no M/V assigned)`,
+    );
+    for (const f of ff.failures) {
+      console.log(
+        `             vertex ${f.vertex} at (${f.position[0].toFixed(4)}, ${f.position[1].toFixed(4)}) degree ${f.degree}: ` +
+          `M ${f.mountains} V ${f.valleys} other ${f.unassigned}, Kawasaki residual ${f.kawasakiResidual.toExponential(2)} rad; ${f.reason}`,
+      );
+    }
+    if (ff.failEither > 0) {
+      console.log(`             ${ff.failEither} of ${ff.interiorVertices} interior vertices are not locally flat-foldable as drawn.`);
+      flatFoldable = false;
+    }
     if (!assigned) {
       console.log(
         `REFUSED    Not printable: the solver built geometry (cp_status ${report.cp_status}) but computed no mountain/valley assignment. ` +
@@ -513,7 +533,7 @@ function main(): number {
   const total = performance.now() - t0;
   const steps = Object.entries(lap).map(([k, v]) => `${k} ${v.toFixed(0)} ms`).join(", ");
   console.log(`time       ${(total / 1000).toFixed(2)} s total of the 20 s budget (N1)  [${steps}]`);
-  return report.ok && report.cp_built && foldValid && printable ? 0 : 1;
+  return report.ok && report.cp_built && foldValid && printable && flatFoldable ? 0 : 1;
 }
 
 process.exit(main());
