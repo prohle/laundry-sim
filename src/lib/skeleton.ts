@@ -396,7 +396,7 @@ function countLeaves(g: Graph): number {
  * (width+2) x (height+2) grid as `thin`. Two-pass chamfer, Borgefors 5-7-11 mask.
  * Background pixels read 0; the padding is background.
  */
-function distanceTransform(input: SkeletonInput): Float32Array {
+export function distanceTransform(input: SkeletonInput): Float32Array {
   const W = input.width + 2;
   const H = input.height + 2;
   const INF = 1e9;

@@ -28,6 +28,8 @@ import jpeg from "jpeg-js";
 import pngjs from "pngjs";
 import { extractTree, DEFAULT_SIGNIFICANCE_THRESHOLD } from "./skeleton.ts";
 import type { SkeletonTree, BranchRecord } from "./skeleton.ts";
+import { selectThreshold } from "./select.ts";
+import type { Selection } from "./select.ts";
 import { minimumTier, tierReport } from "./tiers.ts";
 import type { MinimumTier, TierRow } from "./tiers.ts";
 import { contractShortEdges, DEFAULT_CONTRACT_THRESHOLD } from "./contract.ts";
@@ -241,6 +243,11 @@ export function makeMask(img: Rgb): MaskResult {
   };
 }
 
+/** Decode, downscale and mask an image exactly as runPipeline does, without running the rest. */
+export function maskFromBytes(bytes: Uint8Array, maxDim = 512): MaskResult {
+  return makeMask(downscale(decode(bytes), maxDim));
+}
+
 // ---------- debug images ----------
 
 function encodePng(rgba: Uint8Array, w: number, h: number): Buffer {
@@ -398,7 +405,10 @@ export type LogLine = string | ((paths: { svg: string; fold: string }) => string
 export interface PipelineOptions {
   maxLeaves?: number;
   maxDim?: number;
+  /** Significance threshold. If omitted it is chosen automatically per image (src/lib/select.ts). */
   significance?: number;
+  /** Penalty per leaf for the automatic choice. Default DEFAULT_LAMBDA. Ignored if `significance` is set. */
+  lambda?: number;
   spur?: number;
   contract?: number;
   /** Paper side in mm, for the SVG only. */
@@ -443,6 +453,8 @@ export interface PipelineResult {
   /** The tree handed to the solver (after contraction). */
   tree: SkeletonTree | null;
   contraction: ContractResult | null;
+  /** The automatic threshold sweep, or null when the threshold was given or the tree was edited. */
+  selection: Selection | null;
   minimum: MinimumTier | null;
   tiers: TierRow[] | null;
   solver: SolverReport | null;
@@ -473,7 +485,7 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
   const solverPath = opts.solverPath ?? resolveSolverPath();
   const r: PipelineResult = {
     ok: false, refusal: null, fault: null, log: [], image: null, coverage: null, tree: null,
-    contraction: null, minimum: null, tiers: null, solver: null, solverInput: null, assigned: false,
+    contraction: null, selection: null, minimum: null, tiers: null, solver: null, solverInput: null, assigned: false,
     fold: null, foldCheck: null, foldFacesOmitted: null, flatFold: null, svg: null,
     images: { mask: null, overlay: null }, timingsMs: lap, totalMs: 0,
   };
@@ -524,8 +536,19 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
 
     // 3. tree
     const spurThreshold = opts.spur;
-    const significanceThreshold = opts.significance;
     const frame = { mask: m.mask, width: m.width, height: m.height };
+    let significanceThreshold = opts.significance;
+    if (significanceThreshold === undefined) {
+      const sel = selectThreshold(frame, opts.lambda);
+      r.selection = sel;
+      significanceThreshold = sel.threshold;
+      mark("select");
+      const c = sel.rows[sel.chosen];
+      say(
+        `select     automatic significance threshold ${c.threshold.toFixed(2)} (lambda ${sel.lambda}): ` +
+          `${c.leaves} leaves, IoU ${c.iou.toFixed(4)}, value ${c.value.toFixed(4)}; swept ${sel.rows.length} thresholds`,
+      );
+    }
     // "Before pruning": both prunings off. "After significance": no flap budget.
     const unpruned = extractTree(frame, { significanceThreshold: 0, spurThreshold: 0 });
     const diagnostics: BranchRecord[] = [];

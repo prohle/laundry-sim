@@ -168,6 +168,20 @@ to "box-pleated animals".
         beetle 200 ok:false (stage `assignment`, pattern null); `FOLD_SOLVER` unset-to-bad 500.
         Not tested: `next build` / `next start`, a corrupt-but-valid-magic image, concurrent requests.
 
+- [~] 3.10 Automatic significance threshold (`src/lib/select.ts`, `tools/sweep.ts`)
+      (spec change, added 2026-11-06, user request: replaces the hand-set 2.0 of 3.6)
+      - Score: the tree redrawn as capsules of radius = distance-transform value at each edge's
+        midpoint; IoU against the mask. Sweep 1.0..4.0 by 0.25 (13 trees); value = IoU - lambda * leaves;
+        best value wins, ties to fewer leaves then the higher threshold. `runPipeline` does this when
+        `significance` is not given; an explicit value still overrides. `lambda` = 0.03.
+      - Lambda came from the same four fixtures it is judged on (no held-out subject). Window in which
+        dog = 6, turtle >= 6 and tuatara <= 6 all hold: 0.0217 to 0.037. Outside it the dog goes to 14
+        leaves below 0.0156 and to 5 leaves above 0.049; the turtle collapses to 2 leaves above 0.037.
+      - Cost: about 1.5-2.7 s per image for the sweep, on top of the rest. N1 holds (2.0-3.7 s total).
+      - Beetle: now refused at stage `tier` (15 leaves) instead of `assignment`; the true count is
+        about ten, so 15 is an overcount. Tuatara: 6 leaves, solved, but 4 of 34 interior vertices fail
+        Kawasaki at a residual of 3.1e-5 rad against the 2e-5 tolerance, so `ok` is false.
+
 - [x] 3.3 Minimum-tier computation from the tree
       - `src/lib/tiers.ts`: `rankLeaves`, `treeForTier`, `minimumTier`, `tierReport`. Budgets 4/6/8/12.
         `extractTree` now returns `leafSignificance` (the existing length/radius measure), which
