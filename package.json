@@ -7,14 +7,16 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --test src/lib/skeleton.test.ts src/lib/skeleton.photo.test.ts src/lib/tiers.test.ts src/lib/select.test.ts src/lib/contract.test.ts src/lib/flatfold.test.ts src/lib/properties.test.ts src/lib/pipeline.timeout.test.ts src/lib/edited-tree.test.ts src/lib/tree-edit.test.ts tools/cp-to-svg.test.ts tools/fold.test.ts"
+    "test": "node --test src/lib/skeleton.test.ts src/lib/skeleton.photo.test.ts src/lib/tiers.test.ts src/lib/select.test.ts src/lib/contract.test.ts src/lib/flatfold.test.ts src/lib/properties.test.ts src/lib/pipeline.timeout.test.ts src/lib/edited-tree.test.ts src/lib/tree-edit.test.ts src/lib/collapse.test.ts tools/cp-to-svg.test.ts tools/fold.test.ts"
   },
   "dependencies": {
+    "@types/three": "0.187.0",
     "jpeg-js": "0.4.4",
     "next": "16.4.5",
     "pngjs": "7.0.0",
     "react": "19.2.0",
-    "react-dom": "19.2.0"
+    "react-dom": "19.2.0",
+    "three": "0.187.0"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",

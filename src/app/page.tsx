@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SkeletonTree } from "@/lib/skeleton";
+import type { CollapseCp } from "@/lib/collapse";
+import FoldView from "./FoldView";
 import { minimumTier } from "@/lib/tiers";
 import { addLeaf, deleteLeaf, moveLeaf } from "@/lib/tree-edit";
 
@@ -12,7 +14,7 @@ interface FoldResponse {
   image: { width: number; height: number; analysedWidth: number; analysedHeight: number } | null;
   tree: SkeletonTree | null;
   minimumTier: { tier: string | null; requiredLeaves: number; reason: string } | null;
-  pattern: { svg: string | null } | null;
+  pattern: { svg: string | null; cp?: CollapseCp | null } | null;
   contraction?: { contracted: unknown[]; dropped: { leaf: number; length: number }[] } | null;
   totalMs?: number;
 }
@@ -371,6 +373,11 @@ function Outcome({
           )}
         </div>
       </div>
+
+      {isResult && !dirty && (
+        // Paper size matches the printable sheet: the pipeline default of 150 mm.
+        <FoldView cp={data.pattern?.cp} paperMm={150} />
+      )}
 
       {isResult && (
         <div className="actions">
