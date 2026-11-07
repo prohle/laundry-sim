@@ -258,6 +258,14 @@ to "box-pleated animals".
 - [ ] Hook: run property tests on save
 - [ ] Hook: flag spec drift when requirements change after implementation
 - [ ] Steering: product voice and claims discipline (exists)
-- [ ] MCP: a server exposing the reference models to the agent
+- [x] MCP: a server exposing the reference models to the agent
+      - `mcp/fixtures-server.ts`, registered as `fold-fixtures` in `.kiro/agents/fold-builder.json`
+        (tools pre-approved in `allowedTools`; they are read-only). Resources, `list_fixtures` and
+        `run_pipeline` on a fixture by name; no file writes. See `mcp/README.md`.
+      - MCP stdio protocol is hand-written (no SDK installed, no dependency added); it supports
+        initialize, ping, tools and resources only.
+      - Verified: direct stdio calls, and `kiro-cli chat --agent fold-builder` called both tools and
+        returned dog (ok, 6 leaves, Medium, 55 vertices, 108 creases) and beetle (refused, all F).
+      - `kiro-cli agent validate` exits 0 on a deliberately malformed config, so it proves little.
 - [ ] Custom agent: the reference-model reproduction agent
 - [ ] Commit history showing spec → design → tasks → implementation, in that order
