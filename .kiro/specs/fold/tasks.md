@@ -176,7 +176,17 @@ to "box-pleated animals".
       - Pipeline: dog 6 leaves -> Medium (correct). Beetle 8 leaves -> Hard, which is wrong: the design
         says a beetle needs ten. Cause: the 2.0 threshold was calibrated on the dog, and the antennae are
         lost at the mask. The minimum tier is only as good as the leaf count under it.
-- [ ] 3.4 Human-in-the-loop correction: drag, lengthen, delete
+- [~] 3.4 Human-in-the-loop correction: drag, lengthen, delete
+      - `/api/fold` also takes multipart/form-data (`image` + `tree` JSON); `src/lib/tree-validate.ts`
+        gives 400 for non-tree, cycle, gap, coordinates outside [0,1], non-positive length. Pure edits in
+        `src/lib/tree-edit.ts`; handles, live flap count and tier, "Fold this" in `src/app/page.tsx`.
+        Added leaves attach to the nearest point on the skeleton (a link is split), not the nearest node.
+      - Turtle (`fixtures/snapping-turtle.jpg`): 3 leaves, Easy, 18 creases, M/V assigned -> after three
+        hand-added leaves 6 leaves, Medium, converged, 89 creases, M/V assigned (V 29, M 20). A first
+        attempt with one leaf placed 0.004 from the skeleton lost that leaf to contraction (0.012).
+      - Not done: lengthen an edge by itself (length follows the drag), mask-aware add (any click on the
+        photo adds), keyboard/touch not exercised by script, no test of the UI beyond one scripted run.
+        Whether the turtle pattern reads as a turtle is unknown (4.x).
 - [ ] 3.5 Refusal states: no limbs, too many limbs, packing fails
 
 **Gate, 20 Nov:** three subjects produce trees that a human accepts after at most two corrections.

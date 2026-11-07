@@ -777,3 +777,44 @@ button.upload-label {
   .outcome .panel-col { padding: 16px 12px; }
   .dropzone { min-height: 280px; }
 }
+
+/* Tree editing (task 3.4) */
+.overlay__svg--editable {
+  pointer-events: auto;
+  cursor: crosshair;
+}
+
+.leaf-handle:focus-visible circle:last-child {
+  stroke: var(--color-text);
+  stroke-width: 2px;
+}
+
+.edit-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+}
+
+.edit-bar__help {
+  font-size: 12px;
+  color: var(--color-text-dim);
+  max-width: 60ch;
+}
+
+.edit-bar__note {
+  font-size: 13px;
+  color: var(--color-accent);
+  max-width: 60ch;
+}
+
+.edit-bar__buttons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+button.upload-label:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

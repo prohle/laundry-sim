@@ -411,6 +411,12 @@ export interface PipelineOptions {
   name?: string;
   /** Encode the mask and overlay PNGs into `images`. Off by default: the API does not need them. */
   debugImages?: boolean;
+  /**
+   * A tree edited by the user (task 3.4), already validated by validateEditedTree. When present the
+   * silhouette and skeleton steps are skipped and this tree is solved as given, with no flap budget
+   * applied: the user decided what the limbs are. The image is still decoded, for its size only.
+   */
+  tree?: SkeletonTree;
 }
 
 /**
@@ -490,50 +496,58 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
   r.image = { width: src.width, height: src.height, analysedWidth: img.width, analysedHeight: img.height };
   say(`image      ${opts.label ?? "upload"}  ${src.width}x${src.height} -> ${img.width}x${img.height}`);
 
-  // 2. mask
-  const m = makeMask(img);
-  mark("mask");
-  r.coverage = m.coverage;
-  if (opts.debugImages) r.images.mask = encodeMaskPng(m);
-  say(
-    `mask       Otsu on RGB distance from border colour rgb(${m.background.map(Math.round).join(",")}); ` +
-      `threshold ${m.threshold.toFixed(1)}, border spread ${m.borderSpread.toFixed(1)}, ` +
-      `coverage ${(m.coverage * 100).toFixed(1)}%, ${m.holesFilled} holes filled, ${m.droppedComponents} components dropped`,
-  );
-  if (m.coverage > 0.9 || m.coverage < 0.02) {
-    return refuse(
-      "mask",
-      "I can't find a single object. Try a plainer background.",
-      "REFUSED    I can't find a single object. Try a plainer background. (R1.3: coverage outside 2%..90%)",
-      `silhouette covers ${(m.coverage * 100).toFixed(1)}% of the frame; allowed 2% to 90%`,
+  // 2. mask, 3. tree. An edited tree replaces both: it is the user's tree, solved as given.
+  let tree: SkeletonTree;
+  let sigOnly: SkeletonTree;
+  if (opts.tree) {
+    tree = sigOnly = opts.tree;
+    say(`tree       edited by the user: ${tree.leaves} leaves, ${tree.nodes.length} nodes, ${tree.edges.length} edges; extraction skipped`);
+  } else {
+    // 2. mask
+    const m = makeMask(img);
+    mark("mask");
+    r.coverage = m.coverage;
+    if (opts.debugImages) r.images.mask = encodeMaskPng(m);
+    say(
+      `mask       Otsu on RGB distance from border colour rgb(${m.background.map(Math.round).join(",")}); ` +
+        `threshold ${m.threshold.toFixed(1)}, border spread ${m.borderSpread.toFixed(1)}, ` +
+        `coverage ${(m.coverage * 100).toFixed(1)}%, ${m.holesFilled} holes filled, ${m.droppedComponents} components dropped`,
     );
-  }
+    if (m.coverage > 0.9 || m.coverage < 0.02) {
+      return refuse(
+        "mask",
+        "I can't find a single object. Try a plainer background.",
+        "REFUSED    I can't find a single object. Try a plainer background. (R1.3: coverage outside 2%..90%)",
+        `silhouette covers ${(m.coverage * 100).toFixed(1)}% of the frame; allowed 2% to 90%`,
+      );
+    }
 
-  // 3. tree
-  const spurThreshold = opts.spur;
-  const significanceThreshold = opts.significance;
-  const frame = { mask: m.mask, width: m.width, height: m.height };
-  // "Before pruning": both prunings off. "After significance": no flap budget.
-  const unpruned = extractTree(frame, { significanceThreshold: 0, spurThreshold: 0 });
-  const diagnostics: BranchRecord[] = [];
-  const sigOnly = extractTree(frame, { significanceThreshold, spurThreshold, diagnostics });
-  const tree = extractTree(frame, { significanceThreshold, spurThreshold, maxLeaves });
-  mark("skeleton");
-  if (opts.debugImages) r.images.overlay = encodeOverlayPng(img, m, tree);
-  say(
-    `tree       significance threshold ${significanceThreshold ?? `default (${DEFAULT_SIGNIFICANCE_THRESHOLD})`}, pixel spur threshold ${spurThreshold ?? "default (off)"}; ` +
-      `leaves: before pruning ${unpruned.leaves}, after significance ${sigOnly.leaves}, after maxLeaves=${maxLeaves} ${tree.leaves}; ` +
-      `${tree.nodes.length} nodes, ${tree.edges.length} edges`,
-  );
-  const fmt = (b: BranchRecord) =>
-    `(${b.leafX.toFixed(0)},${b.leafY.toFixed(0)}) len ${b.length.toFixed(1)} / radius ${b.radius.toFixed(1)} = ${b.significance.toFixed(2)}`;
-  const byS = (a: BranchRecord, b: BranchRecord) => a.significance - b.significance;
-  const dropped = diagnostics.filter((b) => b.action === "dropped").sort(byS);
-  const kept = diagnostics.filter((b) => b.action === "kept").sort(byS);
-  say(`dropped    ${dropped.length} branches, significance ${dropped.length ? dropped[0].significance.toFixed(2) + " .. " + dropped[dropped.length - 1].significance.toFixed(2) : "-"}`);
-  for (const b of dropped) say(`             ${fmt(b)}`);
-  say(`kept       ${kept.length} branches, significance ${kept.length ? kept[0].significance.toFixed(2) + " .. " + kept[kept.length - 1].significance.toFixed(2) : "-"}`);
-  for (const b of kept) say(`             ${fmt(b)}`);
+    // 3. tree
+    const spurThreshold = opts.spur;
+    const significanceThreshold = opts.significance;
+    const frame = { mask: m.mask, width: m.width, height: m.height };
+    // "Before pruning": both prunings off. "After significance": no flap budget.
+    const unpruned = extractTree(frame, { significanceThreshold: 0, spurThreshold: 0 });
+    const diagnostics: BranchRecord[] = [];
+    sigOnly = extractTree(frame, { significanceThreshold, spurThreshold, diagnostics });
+    tree = extractTree(frame, { significanceThreshold, spurThreshold, maxLeaves });
+    mark("skeleton");
+    if (opts.debugImages) r.images.overlay = encodeOverlayPng(img, m, tree);
+    say(
+      `tree       significance threshold ${significanceThreshold ?? `default (${DEFAULT_SIGNIFICANCE_THRESHOLD})`}, pixel spur threshold ${spurThreshold ?? "default (off)"}; ` +
+        `leaves: before pruning ${unpruned.leaves}, after significance ${sigOnly.leaves}, after maxLeaves=${maxLeaves} ${tree.leaves}; ` +
+        `${tree.nodes.length} nodes, ${tree.edges.length} edges`,
+    );
+    const fmt = (b: BranchRecord) =>
+      `(${b.leafX.toFixed(0)},${b.leafY.toFixed(0)}) len ${b.length.toFixed(1)} / radius ${b.radius.toFixed(1)} = ${b.significance.toFixed(2)}`;
+    const byS = (a: BranchRecord, b: BranchRecord) => a.significance - b.significance;
+    const dropped = diagnostics.filter((b) => b.action === "dropped").sort(byS);
+    const kept = diagnostics.filter((b) => b.action === "kept").sort(byS);
+    say(`dropped    ${dropped.length} branches, significance ${dropped.length ? dropped[0].significance.toFixed(2) + " .. " + dropped[dropped.length - 1].significance.toFixed(2) : "-"}`);
+    for (const b of dropped) say(`             ${fmt(b)}`);
+    say(`kept       ${kept.length} branches, significance ${kept.length ? kept[0].significance.toFixed(2) + " .. " + kept[kept.length - 1].significance.toFixed(2) : "-"}`);
+    for (const b of kept) say(`             ${fmt(b)}`);
+  }
   if (tree.nodes.length < 2 || tree.edges.length === 0) {
     return refuse(
       "tree",

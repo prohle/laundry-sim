@@ -1,9 +1,15 @@
 /**
  * POST /api/fold — photograph in, geometry out.
  *
- * Request: the raw image bytes as the body, Content-Type image/png or image/jpeg.
+ * Request: either
+ *   - the raw image bytes as the body, Content-Type image/png or image/jpeg (extract a tree, solve it); or
+ *   - multipart/form-data with an `image` file part and a `tree` text part holding the tree as JSON
+ *     (task 3.4: the user's edited tree). Extraction is skipped and that tree is solved as given.
+ *     The tree is validated first; an invalid one is 400 with a plain message.
+ * The multipart form is capped at the same 10 MiB as the raw image.
  *
  * Responses:
+ *   400  `tree` is present but is not valid JSON, or is not a connected, acyclic tree inside the sheet
  *   415  not a PNG or JPEG: wrong Content-Type, bytes that do not match it, or an image that will not decode
  *   413  body larger than 10 MiB
  *   200  { ok: true, ... }   a printable pattern, in `pattern`
@@ -21,6 +27,8 @@
  */
 import type { NextRequest } from "next/server";
 import { runPipeline, sniffImage, ImageDecodeError } from "@/lib/pipeline";
+import { validateEditedTree } from "@/lib/tree-validate";
+import type { SkeletonTree } from "@/lib/skeleton";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,18 +67,46 @@ async function readCapped(request: Request): Promise<Uint8Array | null> {
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
-  const type = (request.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
-  if (!ALLOWED_TYPES.has(type)) {
+  const contentType = request.headers.get("content-type") ?? "";
+  const type = contentType.split(";")[0].trim().toLowerCase();
+  const multipart = type === "multipart/form-data";
+  if (!multipart && !ALLOWED_TYPES.has(type)) {
     return json({ error: "unsupported_media_type", message: "Send a PNG or JPEG photograph as the request body." }, 415);
   }
 
+  const tooLarge = () =>
+    json({ error: "payload_too_large", message: `The photograph must be under ${MAX_BYTES / 1024 / 1024} MiB.` }, 413);
   const declared = Number(request.headers.get("content-length"));
-  if (Number.isFinite(declared) && declared > MAX_BYTES) {
-    return json({ error: "payload_too_large", message: `The photograph must be under ${MAX_BYTES / 1024 / 1024} MiB.` }, 413);
-  }
-  const bytes = await readCapped(request);
-  if (bytes === null) {
-    return json({ error: "payload_too_large", message: `The photograph must be under ${MAX_BYTES / 1024 / 1024} MiB.` }, 413);
+  if (Number.isFinite(declared) && declared > MAX_BYTES) return tooLarge();
+  const raw = await readCapped(request);
+  if (raw === null) return tooLarge();
+
+  let bytes: Uint8Array = raw;
+  let editedTree: SkeletonTree | null = null;
+  if (multipart) {
+    let form: FormData;
+    try {
+      form = await new Response(new Blob([raw as BlobPart]), { headers: { "content-type": contentType } }).formData();
+    } catch {
+      return json({ error: "bad_request", message: "The multipart form could not be read." }, 400);
+    }
+    const image = form.get("image");
+    if (!(image instanceof Blob)) {
+      return json({ error: "bad_request", message: "The form needs an `image` file part." }, 400);
+    }
+    bytes = new Uint8Array(await image.arrayBuffer());
+    const treeField = form.get("tree");
+    if (treeField !== null) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(typeof treeField === "string" ? treeField : await treeField.text());
+      } catch {
+        return json({ error: "invalid_tree", message: "The tree is not valid JSON." }, 400);
+      }
+      const v = validateEditedTree(parsed);
+      if (!v.ok) return json({ error: "invalid_tree", message: v.message }, 400);
+      editedTree = v.tree;
+    }
   }
   if (sniffImage(bytes) === null) {
     return json({ error: "unsupported_media_type", message: "The body is not a PNG or JPEG image." }, 415);
@@ -78,7 +114,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   let result;
   try {
-    result = await runPipeline(bytes);
+    result = await runPipeline(bytes, editedTree ? { tree: editedTree } : {});
   } catch (e) {
     if (e instanceof ImageDecodeError) {
       return json({ error: "unsupported_media_type", message: "The image could not be decoded." }, 415);
