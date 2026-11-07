@@ -182,6 +182,13 @@ to "box-pleated animals".
         flat faces, no limbs. 100%: a flat sliver, faces crossing, strain everywhere, never settled.
         Stopped there; no per-crease tuning. The open finding above (faces cover 0.84 of the
         sheet, so the mesh is not a full square) is the next suspect and is not investigated.
+      - Spec change, 2026-11-06 (user hypothesis): M/V mapping inverted? **Not the cause.** treemaker-core
+        `FOLD_FLAT/MOUNTAIN/VALLEY/BORDER = 0/1/2/3` (lib.rs:54-57) and the C++ reference
+        `tmCrease.h` `enum Fold { FLAT=0, MOUNTAIN=1, VALLEY=2, BORDER=3 }` agree with
+        `solver/src/main.rs` (0 F, 1 M, 2 V, 3 B). Swapped copy `tools/out/bush-dog.swapped.fold`
+        (M<->V, +180<->-180) run beside the normal one, same settings: `swap-normal.png`,
+        `swap-swapped.png`. Both end as a thin, faceted wedge with faces crossing and strain
+        everywhere, still moving after 20 s; neither shows limbs. Stopped; no per-crease tuning.
       - Kawasaki default tolerance is now 2e-5 rad (`src/lib/flatfold.ts`); the largest residual is
         still reported.
 - [ ] 5.4 Printable pattern with legend, paper size, step count, time estimate
