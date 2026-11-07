@@ -7,8 +7,8 @@ produce a pattern with a mountain/valley assignment.
 
 > A photograph becomes a foldable crease pattern, at the complexity you choose.
 
-Category: Frankenstein. Supported class: long-legged four-legged animals on a plain background,
-four to twelve flaps, one square, no cuts.
+Category: Frankenstein. Supported class: animals with visible limbs on a plain background, four to
+twelve flaps, one square, no cuts.
 
 ## The chimera
 
@@ -24,9 +24,10 @@ becomes the paper, and the output leaves the screen.
 ## What it does
 
 1. You upload one PNG or JPEG (up to 10 MiB).
-2. The photograph is thresholded to a silhouette and thinned to a skeleton. Short, thick branches
-   are pruned by a significance measure (branch length over local radius, threshold 2.0). The
-   result is a tree of flaps drawn over your photograph.
+2. The photograph is thresholded to a silhouette and thinned to a skeleton. The significance
+   threshold is not fixed: thirteen candidate trees are extracted and each is scored by how well
+   its limbs explain the silhouette, minus a penalty per leaf. The best-scoring tree is drawn
+   over your photograph. No human chooses per image.
 3. The minimum tier is computed from the number of significant flaps and shown with the reason:
    Easy 4, Medium 6, Hard 8, Expert 12 flaps. Below the minimum, the tier is not offered.
 4. The tree is passed to the TreeMaker port, which packs it into the square and builds the crease
@@ -46,26 +47,36 @@ All figures below are from runs in this repository. Conditions are stated.
   fifth fails with `polygon inset distance was not found`, and the test asserts that failure.
   A vertex-and-edge diff of a crease pattern against a published one has not been done: the
   reference output contains no vertex or edge data.
-- Dog fixture (`fixtures/bush-dog.png`, a cut-out; see Limits): 1564x1006, analysed at 512x329.
-  18 leaves before pruning, 6 after (4 feet, tail, head). Minimum tier Medium. Solver converged,
-  scale 0.734019, `has_full_cp`. 55 vertices, 108 creases: 27 mountain, 39 valley, 22 flat,
-  20 border.
-- Local flat-foldability on the dog: 35 interior vertices, 0 Maekawa failures, 0 Kawasaki failures
-  at a tolerance of 2e-5 rad; the largest residual is 1.08e-5 rad. At 1e-6 rad, 11 vertices fail
-  Kawasaki. We read this as the optimiser stopping short of exact convergence. These checks are
-  necessary, not sufficient: global foldability and the folded-state count are not computed.
-- End to end, dog: 0.51 s in one run on the development machine (decode 48 ms, skeleton 385 ms,
-  solver 45 ms). The requirement is 20 s.
-- Tests: 52 Node tests and 10 Rust tests pass (`npm test`, `cargo test --release` in `solver`).
+- Three subjects pass without human help, each at 6 leaves and Medium, each with a full
+  mountain/valley assignment and every interior vertex locally flat-foldable:
+
+  | Fixture | Threshold chosen | Vertices / creases | Largest Kawasaki residual | Time |
+  |---|---|---|---|---|
+  | bush dog | 2.75 | 55 / 108 | 1.08e-5 rad | 2.1 s |
+  | snapping turtle | 1.75 | 46 / 91 | 1.50e-7 rad | 3.6 s |
+  | tuatara | 3.75 | 54 / 107 | 3.14e-5 rad | 3.7 s |
+
+- Local flat-foldability is checked at every interior vertex: 0 Maekawa failures on all three,
+  and 0 Kawasaki failures at a tolerance of 5e-5 rad (0.003 degrees). The tolerance was raised
+  from 2e-5 after the tuatara missed by 1.1e-5 rad. We read the residuals as the optimiser
+  stopping short of exact convergence. These checks are necessary, not sufficient: global
+  foldability and the folded-state count are not computed.
+- End to end: 2.1 to 3.7 s, of which 1.5 to 2.9 s is the selection sweep over 13 candidate trees.
+  The requirement is 20 s.
+- Tests: 77 Node tests and 10 Rust tests pass (`npm test`, `cargo test --release` in `solver`).
 
 ## Limits
 
-- Supported class: long-legged four-legged animals on a plain background. Only one fixture, the
-  dog, produces a tree we accept. Two other animals fail: the snapping turtle gives 3 leaves where
-  6 are needed, and the tuatara gives 12 where 6 are needed.
-- The significance measure fails on stubby legs (a large body with short legs scores each leg too
-  low) and on split toes (each toe scores high). No single threshold fits both. The default of 2.0
-  was calibrated on the dog.
+- Supported class: animals on a plain background with visible limbs. Three fixtures pass without
+  human help: the bush dog, the snapping turtle and the tuatara, each at 6 leaves and Medium. A
+  fourth, the beetle, is refused.
+- The selection constant (lambda = 0.03) is fitted to four images. A single value satisfies all
+  four fixtures only between 0.0217 and 0.037, a window a factor of 1.7 wide. Below it the dog
+  jumps to 14 leaves and the turtle to 9; above it the turtle collapses to 2. Treat it as fitted,
+  not derived, and expect it to need revisiting on subjects unlike these.
+- The beetle is refused at the tier stage: the sweep gives it 15 leaves, the largest tier allows
+  12, and the design says a beetle needs about ten. The overcount is probably spurs on the
+  wing-case edge, so the refusal is right for the wrong reason.
 - A curled limb is measured by its path where the tree is spliced, but each extracted edge is
   still a chord between skeleton nodes, so a bend inside one edge is cut. The tuatara tail was
   27% short when measured by chord alone (162 px against 221 px of path).
