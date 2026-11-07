@@ -286,3 +286,17 @@ test("svg: solid cut, dashed fold, tab and edge labels, legend with paper size a
   assert.match(svg, /Hollow mode: cut, fold, glue, into a closed volume\./);
   assert.doesNotMatch(svg, /origami/i);
 });
+
+test("labels: sliding never leaves more colliding numbers than not sliding, and none on the cube or icosahedron", async () => {
+  const { layoutLabels } = await import("./net-svg.ts");
+  const { icosphere } = await import("./net-meshes.ts");
+  for (const [mesh, clean] of [[cube(), true], [icosahedron(), true], [icosphere(1), false]] as const) {
+    const r = buildNet(mesh, A4);
+    assert.ok(r.ok);
+    if (!r.ok) return;
+    const fixed = layoutLabels(r.net, false).filter((l) => l.collides).length;
+    const slid = layoutLabels(r.net, true).filter((l) => l.collides).length;
+    assert.ok(slid <= fixed);
+    if (clean) assert.equal(slid, 0);
+  }
+});

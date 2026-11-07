@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { SkeletonTree } from "@/lib/skeleton";
 import type { CollapseCp } from "@/lib/collapse";
 import FoldView from "./FoldView";
+import HollowMode, { ModeSwitch, type Mode } from "./Hollow";
 import { minimumTier, TIER_TIME_ESTIMATES } from "@/lib/tiers";
 import type { TierAttempt } from "@/lib/ladder";
 import { addLeaf, deleteLeaf, moveLeaf } from "@/lib/tree-edit";
@@ -63,6 +64,12 @@ let nextId = 1;
 const makeItem = (file: File): Item => ({ id: nextId++, file, url: URL.createObjectURL(file) });
 
 export default function Home() {
+  const [mode, setMode] = useState<Mode>("fold");
+  const sw = <ModeSwitch mode={mode} onMode={setMode} />;
+  return mode === "hollow" ? <HollowMode modeSwitch={sw} /> : <FoldMode modeSwitch={sw} />;
+}
+
+function FoldMode({ modeSwitch }: { modeSwitch: React.ReactNode }) {
   const [view, setView] = useState<View>({ kind: "empty", notice: null });
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -165,6 +172,7 @@ export default function Home() {
     <div className="app-shell">
       <header className="top-bar">
         <span className="top-bar__wordmark">Fold<span>.</span></span>
+        {modeSwitch}
         <span className="top-bar__status">Photograph to crease pattern</span>
       </header>
 
@@ -181,7 +189,7 @@ export default function Home() {
 
       <main className="screen">
         <p className="supported">
-          One to four photographs of one object with distinct protrusions, from different angles. Four to six flaps in practice, one square, no cuts. Only tiers that fold are offered.
+          One to four photographs of one object with distinct protrusions, from different angles. Four to six flaps in practice, one square, no cuts. A tier that does not fold can be opened to see why.
         </p>
 
         {(view.kind === "empty" || view.kind === "staged") && (
@@ -379,17 +387,30 @@ function Outcome({
     }
   };
 
-  /** Swap tree, pattern, SVG and 3D fold to a tier already in memory. */
+  /**
+   * Swap to a tier already in memory. A tier that folds brings its pattern; one that did not brings its tree and
+   * its refusal reason and no pattern (3.26). A tier below the minimum was never solved and has no tree.
+   */
   const chooseTier = (i: number) => {
     const a = ladder?.[i];
-    if (!a || !a.ok || !a.pattern || !a.tree || folding || i === selected) return;
-    setData((d) => ({
-      ...d, ok: true, refusal: null, tree: a.tree, contraction: a.contraction,
-      pattern: { svg: a.pattern!.svg, cp: a.pattern!.cp as CollapseCp },
-      budget: { requested: a.budget, used: a.budget, leaves: a.leaves ?? 0 },
-    }));
-    setSvg(a.pattern.svg);
-    setRefusalMessage("");
+    if (!a || !a.tree || folding || i === selected) return;
+    if (a.ok && a.pattern) {
+      setData((d) => ({
+        ...d, ok: true, refusal: null, tree: a.tree, contraction: a.contraction,
+        pattern: { svg: a.pattern!.svg, cp: a.pattern!.cp as CollapseCp },
+        budget: { requested: a.budget, used: a.budget, leaves: a.leaves ?? 0 },
+      }));
+      setSvg(a.pattern.svg);
+      setRefusalMessage("");
+    } else {
+      const message = a.refusal?.message ?? "This tier did not produce a printable pattern.";
+      setData((d) => ({
+        ...d, ok: false, refusal: a.refusal, tree: a.tree, contraction: a.contraction, pattern: null,
+        budget: { requested: a.budget, used: a.budget, leaves: a.leaves ?? 0 },
+      }));
+      setSvg(null);
+      setRefusalMessage(message);
+    }
     setTree(a.tree);
     setFolded(a.tree);
     proposed.current = a.tree;
@@ -450,9 +471,9 @@ function Outcome({
                 <button
                   key={t.tier}
                   type="button"
-                  className="tiers__chip"
+                  className={`tiers__chip${t.ok ? "" : " tiers__chip--unavailable"}`}
                   aria-pressed={selected === i}
-                  disabled={!t.ok || folding}
+                  disabled={!t.tree || folding}
                   onClick={() => chooseTier(i)}
                 >
                   <span className="tiers__name">{cap(t.tier)} {t.budget}</span>
@@ -465,7 +486,7 @@ function Outcome({
           <p className="tiers__help" role="status">
             {folding ? "Folding" : selected === null
               ? "The pattern was made from your edited tree. Choose a tier to go back to the photograph's tree."
-              : "Only tiers that fold can be chosen. Times are estimates, not yet measured."}
+              : "A tier that does not fold can be chosen to see its tree and why. Times are estimates, not yet measured."}
             {data.budget && selected !== null && !folding ? ` Flaps in this pattern: ${data.budget.leaves}.` : ""}
           </p>
         </div>

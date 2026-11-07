@@ -365,6 +365,17 @@ to "box-pleated animals".
       - Cap counts tab: a split part holds at most 11 original leaves. Parts under 3 leaves merge into the nearest sibling at
         the junction if the cap allows; otherwise left and refused by the solve step.
 
+- [~] 3.26 A failed tier stays selectable (spec change, added 2026-11-07, user request; replaces the disabled-chip behaviour of 3.19)
+      - Selecting a tier that did not fold swaps in that tier's tree and shows its refusal reason. No SVG, no pattern, no 3D
+        fold. The chip is styled as unavailable but is not disabled. Tiers below the minimum (never solved) have no tree and
+        stay unselectable.
+      - Observed, turtle, headless Chromium, `next dev`, 1280 and 390 px: chips Easy disabled (needs 6 flaps), Medium
+        minimum, Hard and Expert styled unavailable (dashed, dimmed) and enabled. Hard selected: aria-pressed on Hard, 8
+        flaps, 21 overlay circles (its tree), header "No pattern", the refusal text in the notice, no `.pattern-svg`, no
+        `.fold-view`, no canvas. Back to Medium: pattern and fold return. Screenshots `tools/out/fix-fold-{hard,medium}-{1280,390}.png`.
+      - Not done: the Hard reason shown is the ladder's refusal for that tier; for turtle Hard it reads "crease pattern with no
+        mountain or valley folds". Expert's reason not read on screen.
+
 **Gate, 20 Nov:** three subjects produce trees that a human accepts after at most two corrections.
 
 ## Phase 4 — Fold it (20–25 Nov)
@@ -423,6 +434,13 @@ to "box-pleated animals".
         decreasing; label updated 78 times (about 9.5/s). Orbit drag mid-play: 20 extra redraws, `t` kept
         advancing (0.249 -> 0.293). Orbit while paused: 10 redraws, `t` unchanged at 1. No console errors.
       - Not measured: React render count before the change, GPU frame rate, touch orbit.
+- [~] 5.3c The 3D fold autoplays (spec change, added 2026-11-07, user request)
+      - It plays without a click when a pattern arrives or a tier is selected. The pause control stays. An orbit drag neither
+        restarts nor pauses it.
+      - Deviation: with `prefers-reduced-motion: reduce` it does not autoplay (not tested).
+      - Observed, turtle, 1280 and 390 px, no click: `foldT` 0.006 -> 0.133 after 1 s, button "Pause". Orbit drag of 10 mouse
+        moves mid-play: `foldT` rose on every sample (0.145 -> 0.231 -> 0.293 half a second later), button still "Pause".
+        Selecting Medium again after Hard: `foldT` 0.007 -> 0.107 in 0.8 s, playing. No console errors.
 - [~] 5.0 Product screen `src/app/page.tsx`: empty, processing, result, refusal (and a fault state)
       - Spec change, 2026-11-06 (user request): replaces the relief UI. Deleted `Relief3D.tsx`,
         `src/lib/crease.ts`, `src/lib/db.ts`, `src/app/api/plans/route.ts`; removed dependencies
@@ -551,7 +569,30 @@ Spec change, 2026-11-07 (user request, option 1 approved). R9; design "Hollow mo
         and at 4 views; the other 400 lie beyond the mug's own silhouette. A bite is never visible in any silhouette.
       - Not done: a through-hole viewed along its axis is carved by that view, not tested; real photographs not used.
 - [ ] 9.4 Closed mesh from the hull, coarse enough to cut by hand
-- [ ] 9.5 Screen: a Fold / Hollow switch, with Hollow showing the net and assembly
+- [~] 9.5 Screen: a Fold / Hollow switch, with Hollow showing the net and assembly
+      - `src/lib/hollow.ts` (`runHollow`), `src/lib/hollow-slots.ts` (browser-safe constants), `POST /api/hollow`,
+        `src/app/Hollow.tsx`, switch in the top bar of `page.tsx` (Fold default, Fold screen unchanged).
+      - Slots Front 0 / Right 90 / Back 180 / Left 270 in the order added, said on screen. Each mask is cropped to the
+        object's bounding box, scaled to a common height (64 mm) and centred: assumes the whole object is in frame at the
+        same height in every photograph (stated on screen). Default 20 faces; 80 faces offered, labelled harder.
+      - Observed, two identical 400x400 ellipse photographs (110 x 170 px semi-axes), `next dev`: 20 faces ->
+        ok, 8 tabs, 3 dropped (edges 1, 2, 5 taped), A4, bbox 190.0 x 158.3 mm, mesh volume 18719 mm^3. 80 faces ->
+        refused at `net`, overlaps from all 8 roots (17-27 overlaps). One photograph -> plain refusal at `views`.
+        The 2-taped-edge figure is the regular icosahedron's; this elongated hull taped 3.
+      - Headless Chromium 1280 and 390 px: switch, net with counts, one-image refusal, 80-face refusal; overflow 0 px,
+        no console errors. `tools/out/mode-*.png`. Text "one square, no cuts, no glue" absent in Hollow.
+      - Not exercised: empty-hull and not-star refusals through the UI, a real photograph, 3-4 views, the 80-face
+        success case (no fixture produced one), drag-and-drop. Tab-label overlap ("1!" "2!") visible in the net SVG.
+      - Found: a client component importing `@/lib/hollow` pulled `node:fs` into the browser bundle (Turbopack panic);
+        constants moved to `hollow-slots.ts`.
+      - Spec change, 2026-11-07 (user request): **80 faces removed from the UI**, not fixed. Its net overlapped from all 8 roots
+        on every mesh tried; the screen now says in one line that it was removed and why. `/api/hollow` still accepts `level`.
+      - Tab and edge numbers (`layoutLabels` in `src/lib/net-svg.ts`): each number slides along its edge, in 0.75 mm steps, until
+        its box touches no other number, no other tab, no face but its own; one with no clear spot gets `data-collides`.
+        Colliding numbers, not sliding -> sliding: cube 0 -> 0, icosahedron 0 -> 0, icosphere(1) 28 -> 22 of 82,
+        bumpy(1,0.05,4) 27 -> 17, bumpy(1,0.1,7) 37 -> 18. The 80-face nets are not offered, so those residuals are not on screen.
+        The 20-face net from two ellipse photographs (taped edges 1, 2, 5): 22 numbers, 0 flagged; "1!" pair and "2!" pair now sit
+        apart and read. No before image of that net was kept. Screenshots `tools/out/fix-hollow-net.png`, `fix-icosa-after.png`.
 
 **Gate, 9 Nov:** 9.1 and 9.2 working, or Hollow mode is parked and the entry ships Fold only. If
 parked, say so plainly and stop; do not carry a half-built mode into December.

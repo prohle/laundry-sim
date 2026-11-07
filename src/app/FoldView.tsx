@@ -19,7 +19,8 @@ export default function FoldView({ cp, paperMm }: { cp: CollapseCp | null | unde
 
   const [t, setT] = useState(0);
   const [mode, setMode] = useState<CollapseMode>("sequence");
-  const [playing, setPlaying] = useState(false);
+  // Autoplays on mount (FoldView is remounted per tier), unless the visitor asks for reduced motion.
+  const [playing, setPlaying] = useState(() => typeof window === "undefined" || !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
 
   const mountRef = useRef<HTMLDivElement>(null);
   const renderRef = useRef<(() => void) | null>(null);

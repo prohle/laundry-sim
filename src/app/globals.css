@@ -858,6 +858,8 @@ button.upload-label:disabled {
 .tiers__chip { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; padding: 8px 12px; font: inherit; color: inherit; background: transparent; border: 1px solid currentColor; border-radius: 6px; cursor: pointer; }
 .tiers__chip[aria-pressed="true"] { outline: 2px solid currentColor; outline-offset: 2px; font-weight: 600; }
 .tiers__chip:disabled { opacity: 0.55; cursor: not-allowed; }
+.tiers__chip--unavailable { opacity: 0.55; border-style: dashed; }
+.tiers__chip--unavailable[aria-pressed="true"] { opacity: 1; }
 .tiers__sub { font-size: 0.8em; }
 .tiers__help { margin: 0; font-size: 0.9em; }
 
@@ -900,3 +902,17 @@ button.upload-label:disabled {
 .fold-view__controls button.upload-label { padding: 4px 10px; font-size: 11px; min-height: 0; }
 .fold-view__slider { flex: 1 1 110px; font-size: 11px; }
 .fold-view .steps { margin-top: 6px; }
+
+/* Mode switch and Hollow mode (task 9.5) */
+.mode-switch { display: inline-flex; border: 1px solid currentColor; border-radius: 6px; overflow: hidden; margin: 0 12px; }
+.mode-switch__btn { background: transparent; color: inherit; border: 0; padding: 6px 14px; font: inherit; cursor: pointer; }
+.mode-switch__btn[aria-pressed="true"] { background: var(--color-text); color: var(--color-canvas); }
+.hollow-slots__list { list-style: none; padding: 0; margin: 8px 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+.hollow-slot { border: 1px dashed currentColor; border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 4px; position: relative; min-height: 64px; }
+.hollow-slot--filled { border-style: solid; }
+.hollow-slot__label { font-weight: 600; }
+.hollow-slot__empty { opacity: 0.7; }
+.hollow-order, .hollow-facts, .hollow-status { max-width: 70ch; }
+.hollow-level { border: 0; padding: 0; margin: 12px 0; display: flex; flex-direction: column; gap: 4px; }
+.hollow-result { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+.hollow-net { width: 100%; max-width: 760px; height: auto; background: #fff; border: 1px solid #888; }
