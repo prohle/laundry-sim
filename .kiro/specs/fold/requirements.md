@@ -132,6 +132,13 @@ visual hull of 2 to 4 silhouettes (tasks 9.3, 9.4); R9.1–R9.5 take the mesh as
 - R9.2 Unfold along a breadth-first spanning tree of the face adjacency graph, placing each face
   across the shared edge without overlap.
 - R9.3 Add a tab on every edge not in the spanning tree.
+  - Spec change, 2026-11-07 (user request): a tab is a trapezoid whose two sides taper inward by a
+    taper angle measured from the edge normal. The taper is the smallest in [0, 20] degrees (bisection
+    to 0.5 degree) for which the tab clears every placed face and every tab already placed, i.e. the
+    widest tab that fits, so the most glue area. If no taper in that range clears, the depth is cut back
+    as before; if none does, the tab is dropped and recorded with the taper that would have been needed.
+    The user's brief called this "the largest angle that fits" with a drop below 2 degrees; larger taper
+    means a narrower tab, so the direction is inverted here (see tasks 9.1b).
 - R9.4 Detect overlapping placements, retry with a different root up to 8 times, and refuse with a
   reason if none succeeds.
 - R9.5 Render the net as SVG: cut lines solid, fold lines dashed, tabs labelled, with a legend, paper

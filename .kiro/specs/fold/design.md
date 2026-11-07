@@ -68,6 +68,15 @@ the other side carries the matching label. A tab and its labelled edge share a n
 on the far side of the shared edge, preserving edge lengths. Meshes arrive from the visual hull
 (tasks 9.3, 9.4), which is not built yet.
 
+Tab shape (spec change, 2026-11-07, user request): a tab is a trapezoid on the outside of its cut edge. Depth is
+0.3 x edge length by default, then 8, 6, 4 mm when shorter. The sides lean inward by a taper angle theta from the
+edge normal; the base corner is 90 - theta. Collision is monotone in theta (larger theta, smaller tab), so the
+tab takes the smallest theta in [0, 20] degrees that clears everything, found by bisection to 0.5 degree, measured
+at each end with the other end at 20 and then applied to both ends (a symmetric trapezoid, which is a subset of
+both measured shapes). Tabs are placed in label order after all faces are placed; each is tested against every
+face but its own and every tab already placed. A corner of 70 degrees cannot sit in a vertex gap narrower than 70
+degrees, so such edges are dropped and taped; the report gives the taper that would have been needed.
+
 ## Complexity ladder
 
 | Tier | Flaps | Grid | Steps | Time | Paper | Typical subject |

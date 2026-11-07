@@ -506,6 +506,35 @@ Spec change, 2026-11-07 (user request, option 1 approved). R9; design "Hollow mo
       - Shortening does not help those: the tab's side angle (about 73 degrees) is fixed, so a gap at a vertex
         narrower than that is hit at any depth. A tab shape that follows the gap would be a spec change; not made.
 
+- [~] 9.1b Adaptive tab taper (`src/lib/net.ts`; spec change, added 2026-11-07, user request; refines R9.3)
+      - Recorded before implementation. `Tab.taper`, `Net.tabsWidened`, `DroppedTab.neededTaper`, `NetOptions.maxTaper`
+        (default 20). Tabs are placed in label order, each tested against all faces but its own and the tabs placed before.
+        Scale is now taken from rectangular (taper 0) tabs, which contain every tapered tab. Symmetric trapezoid used
+        throughout: the larger of the two end tapers applied to both, which lies inside both measured shapes.
+      - Two premises in the request did not match the code. (1) The old tab was not 10 degrees: inset 0.3 x depth is
+        atan(0.3) = 16.7 degrees, base corner 73.3. (2) Depth is 0.3 x edge length (cube 190 mm bbox, icosahedron edge
+        about 30 mm), not 6 mm; 8/6/4 mm are fallbacks. Both left as they were. (3) A larger taper narrows the tab, so
+        collision falls as the angle grows; "largest angle that fits" is trivially the limit. Implemented as the smallest
+        taper that fits (widest tab). The "drop below 2 degrees" rule has no counterpart; a tab drops when none in the
+        range, at any depth, clears.
+      - **Icosahedron at the specified range [0, 20]: 5 of 11 placed, 6 dropped, shortened 0. The target of 9 is not met.**
+        Before the change: 5 placed, 6 dropped. All five survivors fit as plain rectangles (taper 0). Each of the 6 dropped
+        edges (labels 1, 2, 4, 5, 9, 10) needs a taper of 30.2 degrees (base corner 59.8), at default depth and at 4 mm alike:
+        the gap at the vertex is 60 degrees (five 60-degree triangles around a vertex leave 60), and the tab corner cannot be
+        narrower than the gap. 20 degrees gives a 70 degree corner, which cannot fit.
+      - With `maxTaper` 30 (not the default): icosahedron 11 of 11 placed, widest taper 30.0, 0 dropped. 31, 35, 45, 60: same.
+        The overlap test is unchanged (eps 1e-6 x scale x longest edge); a 60 degree corner in a 60 degree gap touches and does not overlap.
+      - Other meshes, placed/dropped before -> after at [0, 20]: cube 7/0 -> 7/0; 80-face icosphere 29/12 -> 28/13 (one worse:
+        greedy order, label 16 was placed before and now fails; it needs 26.9 degrees); bumpy(1,0.05,4) 29/12 -> 29/12 (3 shortened
+        both, widest taper 7.8); bumpy(1,0.1,7) 19/22 -> 22/19 (shortened 2 -> 3, widest taper 18.1).
+        At maxTaper 60 the 80-face icosphere still drops 12; bumpy(0.1,7) drops 17; bumpy(0.05) drops 12 up to 60.
+      - Surviving tabs overlapping a face or another tab: 0 on all five meshes (`tools/tab-report.ts`).
+      - Cost: scale now comes from rectangular tabs, so models are smaller where a tab sets the bbox: icosahedron 190.0 x 224.7 mm
+        (earlier 190.0 x 168.7), cube 190.0 x 190.0 (earlier 190.0 x 173.3). Not compared scale for scale on the other meshes.
+      - Tests: 3 added in `src/lib/net.test.ts` (default range 5/6 with needed taper 29-31; maxTaper 30 places >= 9, here 11;
+        an 80-face icosphere still drops at 85 degrees). The "at least 9 of 11" test needs maxTaper 30; at the default it does not pass.
+      - Open decision for the user: raise `MAX_TAPER_DEGREES` to 30 (a 60 degree corner is a narrow, fiddly tab to glue)?
+
 - [x] 9.2 SVG renderer (`src/lib/net-svg.ts`), `tools/net-demo.ts`, `tools/out/net-cube.svg`, `tools/out/net-icosa.svg`
       - Rendered both in headless Chromium and looked at them: cut solid, fold dashed, tabs numbered with the matching
         edge numbered, legend with paper size, face count, tab count, scale. The text says "cut, fold, glue" and never

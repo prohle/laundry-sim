@@ -1,12 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildNet, trianglesOverlap, polygonsOverlap, defaultRoots, A4, MAX_ATTEMPTS, FLAT_DEGREES, TAB_DEPTHS_MM } from "./net.ts";
-import type { Mesh, Net } from "./net.ts";
+import type { Mesh, Net, NetOptions } from "./net.ts";
 import { netToSvg } from "./net-svg.ts";
 import { cube, icosahedron, icosphere, bumpy, torus } from "./net-meshes.ts";
 
-function mustBuild(mesh: Mesh): Net {
-  const r = buildNet(mesh, A4);
+function mustBuild(mesh: Mesh, paper = A4, options: NetOptions = {}): Net {
+  const r = buildNet(mesh, paper, options);
   assert.ok(r.ok, r.ok ? "" : r.refusal.message);
   return r.net;
 }
@@ -126,6 +126,42 @@ test("tabs on a cube collide with nothing: none shortened, none dropped, default
     const len = Math.hypot(t.polygon[1][0] - t.polygon[0][0], t.polygon[1][1] - t.polygon[0][1]);
     assert.ok(Math.abs(t.depth - 0.3 * len) < 1e-9);
   }
+});
+
+test("icosahedron at the default range [0, 30]: all 11 tabs place, none dropped", () => {
+  // The default was 20 degrees, which left 6 tabs unplaceable because the
+  // vertex gap in this net is 60 degrees. Raising it to 30 places all 11.
+  const net = mustBuild(icosahedron());
+  assert.equal(net.tabs.length, 11);
+  assert.equal(net.tabsDropped.length, 0);
+  const widest = Math.max(...net.tabs.map((t) => t.taper));
+  assert.ok(widest <= 30.5, `widest taper ${widest}`);
+  assertTabsClear(net);
+});
+
+test("icosahedron at the old 20 degree range still drops 6, which is why the default changed", () => {
+  const net = mustBuild(icosahedron(), A4, { maxTaper: 20 });
+  assert.equal(net.tabs.length, 5);
+  assert.equal(net.tabsDropped.length, 6);
+  for (const d of net.tabsDropped) {
+    const need = d.neededTaper.defaultDepth;
+    assert.ok(need !== null && need > 29 && need < 31, `needed taper ${need}`);
+  }
+  assertTabsClear(net);
+});
+
+test("icosahedron, taper range widened to [0, 30]: at least 9 of 11 tabs place, none overlaps anything", () => {
+  const net = mustBuild(icosahedron(), A4, { maxTaper: 30 });
+  assert.ok(net.tabs.length >= 9, `placed ${net.tabs.length}`);
+  assertTabsClear(net);
+  for (const t of net.tabs) assert.ok(t.taper <= 30 + 1e-9);
+});
+
+test("a wedge that no taper can fit still drops: 80-face icosphere drops tabs at a 85 degree range", () => {
+  const net = mustBuild(icosphere(1), A4, { maxTaper: 85 });
+  assert.ok(net.tabsDropped.length > 0);
+  for (const d of net.tabsDropped) assert.equal(d.neededTaper.shortestDepth, null);
+  assertTabsClear(net);
 });
 
 test("tab collision: tabs are shortened to 8, 6 or 4 mm, or dropped and recorded (found by search)", () => {

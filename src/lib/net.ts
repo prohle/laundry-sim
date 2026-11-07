@@ -31,6 +31,19 @@ export const MAX_ATTEMPTS = 8;
 export const FLAT_DEGREES = 179;
 /** Tab depths tried, in order, when the default tab collides (mm). Only depths below the current one are used. */
 export const TAB_DEPTHS_MM = [8, 6, 4];
+/** Default taper (degrees from the edge normal) of the legacy fixed tab: atan(0.3). */
+export const LEGACY_TAPER_DEGREES = (Math.atan(0.3) * 180) / Math.PI;
+/** Taper search range and resolution (degrees). A larger taper is a narrower tab. */
+/**
+ * Widest tab taper searched, in degrees. 30 is the measured minimum that
+ * lets an icosahedron place all 11 of its tabs: the vertex gap in that net
+ * is 60 degrees, so a 20 degree taper leaves a 70 degree corner that cannot
+ * fit. A 60 degree corner is a narrow tab to glue, which is the trade.
+ */
+export const MAX_TAPER_DEGREES = 30;
+export const TAPER_STEP_DEGREES = 0.5;
+/** Upper limit of the diagnostic search reported for dropped tabs (degrees). */
+export const DIAGNOSTIC_TAPER_DEGREES = 85;
 /** Free margin on every side of the paper, and the strip reserved at the bottom for the legend (mm). */
 export const MARGIN_MM = 10;
 export const LEGEND_MM = 24;
@@ -72,6 +85,8 @@ export interface Tab {
   at: Vec2;
   /** How far the tab stands out from its edge, in millimetres. */
   depth: number;
+  /** Inward lean of both sides from the edge normal, degrees. The base corner is 90 minus this. */
+  taper: number;
 }
 
 /** A tab that collided at every depth down to the shortest and was removed. Its edge cannot be glued. */
@@ -79,6 +94,12 @@ export interface DroppedTab {
   label: number;
   edge: [number, number];
   face: number;
+  /**
+   * Smallest taper (degrees, searched to DIAGNOSTIC_TAPER_DEGREES, 0.5 resolution) at which a tab would clear
+   * everything placed before it, at the default depth and at the shortest depth tried. null: none up to the limit.
+   * Above MAX_TAPER_DEGREES means the spec's range was too small for this edge.
+   */
+  neededTaper: { defaultDepth: number | null; shortestDepth: number | null };
 }
 
 export interface Attempt {
@@ -92,6 +113,8 @@ export interface Net {
   tabs: Tab[];
   /** Tabs that were cut back to 8, 6 or 4 mm to clear a collision. */
   tabsShortened: number;
+  /** Tabs whose taper is above 0 and below the legacy fixed taper, i.e. wider than the old tab. */
+  tabsWidened: number;
   /** Tabs removed because they collided even at 4 mm. Those edges have a number but no tab. */
   tabsDropped: DroppedTab[];
   paper: Paper;
@@ -119,6 +142,8 @@ export type NetResult = { ok: true; net: Net } | { ok: false; refusal: Refusal }
 export interface NetOptions {
   /** Override the roots tried, in order. Default: up to 8 faces spread evenly over the mesh. */
   roots?: number[];
+  /** Widest taper searched, degrees. Default MAX_TAPER_DEGREES (30). */
+  maxTaper?: number;
 }
 
 // ---------------------------------------------------------------- geometry helpers
@@ -397,7 +422,7 @@ export function countOverlaps(placed: PlacedFace[], eps: number): number {
 
 // ---------------------------------------------------------------- tabs
 
-function makeTab(pf: PlacedFace, a: number, b: number, label: number, depthOverride?: number): Tab {
+function makeTab(pf: PlacedFace, a: number, b: number, label: number, depthOverride?: number, taperDeg = LEGACY_TAPER_DEGREES): Tab {
   const ia = pf.v.indexOf(a);
   const ib = pf.v.indexOf(b);
   const ic = 3 - ia - ib;
@@ -413,7 +438,7 @@ function makeTab(pf: PlacedFace, a: number, b: number, label: number, depthOverr
   let ny = ux;
   if ((pc[0] - pa[0]) * nx + (pc[1] - pa[1]) * ny > 0) { nx = -nx; ny = -ny; } // away from the face
   const depth = depthOverride ?? 0.3 * len;
-  const inset = 0.3 * depth;
+  const inset = Math.tan((taperDeg * Math.PI) / 180) * depth;
   const pb2: Vec2 = [pb[0] + nx * depth - ux * inset, pb[1] + ny * depth - uy * inset];
   const pa2: Vec2 = [pa[0] + nx * depth + ux * inset, pa[1] + ny * depth + uy * inset];
   return {
@@ -423,6 +448,7 @@ function makeTab(pf: PlacedFace, a: number, b: number, label: number, depthOverr
     polygon: [pa, pb, pb2, pa2],
     at: [(pa[0] + pb[0]) / 2 + nx * depth * 0.55, (pa[1] + pb[1]) / 2 + ny * depth * 0.55],
     depth,
+    taper: taperDeg,
   };
 }
 
@@ -508,7 +534,8 @@ export function buildNet(mesh: Mesh, paper: Paper = A4, options: NetOptions = {}
 
   // Default tabs in mesh units, only to find the scale: the largest that fits the usable area.
   const cutEdges = edges.filter((e) => e.kind === "cut");
-  const tabsUnit = cutEdges.map((e) => makeTab(chosen!.placed[e.faces[0]], e.a, e.b, e.label));
+  // Taper 0 is the widest tab; every tapered tab lies inside it, so the scale found here fits all of them.
+  const tabsUnit = cutEdges.map((e) => makeTab(chosen!.placed[e.faces[0]], e.a, e.b, e.label, undefined, 0));
   const pts: Vec2[] = [];
   for (const f of chosen.placed) pts.push(...f.p);
   for (const t of tabsUnit) pts.push(...t.polygon);
@@ -525,35 +552,87 @@ export function buildNet(mesh: Mesh, paper: Paper = A4, options: NetOptions = {}
     p: [tx(f.p[0]), tx(f.p[1]), tx(f.p[2])],
   }));
 
-  // Tabs in millimetres, then collision handling. A tab is tested against every face except the one it is
-  // attached to, and against every other tab. On a collision it is cut back to 8, 6, then 4 mm (only depths
-  // shorter than its current one); if it still collides it is dropped and recorded. Shortening can only
-  // shrink the bounding box, so the scale found above still fits.
+  // Tabs in millimetres, placed in label order after every face is placed. A tab is tested against every face
+  // except the one it hangs on (its partner across the cut edge is tested) and every tab placed before it.
+  // For each depth (default, then 8, 6, 4 mm when shorter) the taper is the smallest in [0, MAX_TAPER] that
+  // clears everything: collision only falls as the taper grows (the tab narrows), so bisection applies. The
+  // taper is measured at each end with the other end at MAX_TAPER, and the larger of the two is applied to both
+  // ends: a symmetric trapezoid that lies inside both measured shapes. No depth clears: the tab is dropped.
   const mmEps = 1e-6 * scale * longest;
-  const live: (Tab | null)[] = cutEdges.map((e) => makeTab(faces[e.faces[0]], e.a, e.b, e.label));
-  const defaultDepth = live.map((t) => t!.depth);
-  const collides = (i: number, t: Tab) =>
-    faces.some((f) => f.face !== t.face && polygonsOverlap(t.polygon, f.p, mmEps)) ||
-    live.some((o, j) => j !== i && o !== null && polygonsOverlap(t.polygon, o.polygon, mmEps));
+  const placedTabs: Tab[] = [];
+  const clear = (t: Tab) =>
+    !faces.some((f) => f.face !== t.face && polygonsOverlap(t.polygon, f.p, mmEps)) &&
+    !placedTabs.some((o) => polygonsOverlap(t.polygon, o.polygon, mmEps));
+  const shape = (e: NetEdge, depth: number | undefined, ta: number, tb: number): Tab => {
+    const sym = makeTab(faces[e.faces[0]], e.a, e.b, e.label, depth, 0);
+    const [pa, pb] = sym.polygon;
+    const d = sym.depth;
+    const nx = sym.polygon[3][0] - pa[0];
+    const ny = sym.polygon[3][1] - pa[1];
+    const ux = (pb[0] - pa[0]) / Math.hypot(pb[0] - pa[0], pb[1] - pa[1]);
+    const uy = (pb[1] - pa[1]) / Math.hypot(pb[0] - pa[0], pb[1] - pa[1]);
+    // Beyond the triangle limit the two top corners would cross; cap the inset at half the edge.
+    const half = Math.hypot(pb[0] - pa[0], pb[1] - pa[1]) / 2;
+    const ia = Math.min(Math.tan((ta * Math.PI) / 180) * d, half);
+    const ib = Math.min(Math.tan((tb * Math.PI) / 180) * d, half);
+    return {
+      ...sym,
+      polygon: [pa, pb, [pb[0] + nx - ux * ib, pb[1] + ny - uy * ib], [pa[0] + nx + ux * ia, pa[1] + ny + uy * ia]],
+      taper: Math.max(ta, tb),
+    };
+  };
+  /** Smallest taper in [0, limit] (to TAPER_STEP) for one end with the other end at `other`, or null. */
+  const fitEnd = (e: NetEdge, depth: number | undefined, end: "a" | "b", other: number, limit: number): number | null => {
+    const at = (th: number) => (end === "a" ? shape(e, depth, th, other) : shape(e, depth, other, th));
+    if (!clear(at(limit))) return null;
+    if (clear(at(0))) return 0;
+    let lo = 0;
+    let hi = limit;
+    while (hi - lo > TAPER_STEP_DEGREES) {
+      const mid = (lo + hi) / 2;
+      if (clear(at(mid))) hi = mid;
+      else lo = mid;
+    }
+    return hi;
+  };
+  const fitTab = (e: NetEdge, depth: number | undefined, limit: number): Tab | null => {
+    const ta = fitEnd(e, depth, "a", limit, limit);
+    const tb = fitEnd(e, depth, "b", limit, limit);
+    if (ta === null || tb === null) return null;
+    const th = Math.max(ta, tb);
+    const t = shape(e, depth, th, th);
+    return clear(t) ? t : null;
+  };
   const tabsDropped: DroppedTab[] = [];
   let tabsShortened = 0;
-  live.forEach((t0, i) => {
-    if (!collides(i, t0!)) return;
-    const e = cutEdges[i];
-    let fixed = false;
-    for (const d of TAB_DEPTHS_MM) {
-      if (d >= defaultDepth[i] - 1e-9) continue;
-      const cand = makeTab(faces[e.faces[0]], e.a, e.b, e.label, d);
-      live[i] = cand;
-      if (!collides(i, cand)) { fixed = true; break; }
+  let tabsWidened = 0;
+  for (const e of cutEdges) {
+    const defaultDepth = makeTab(faces[e.faces[0]], e.a, e.b, e.label, undefined, 0).depth;
+    let tab: Tab | null = null;
+    let usedDepth: number | undefined;
+    for (const d of [undefined, ...TAB_DEPTHS_MM.filter((x) => x < defaultDepth - 1e-9)]) {
+      tab = fitTab(e, d, options.maxTaper ?? MAX_TAPER_DEGREES);
+      if (tab) { usedDepth = d; break; }
     }
-    if (fixed) tabsShortened++;
-    else {
-      live[i] = null;
-      tabsDropped.push({ label: e.label, edge: [e.a, e.b], face: e.faces[0] });
+    if (tab) {
+      if (usedDepth !== undefined) tabsShortened++;
+      if (tab.taper < LEGACY_TAPER_DEGREES - 1e-9) tabsWidened++;
+      placedTabs.push(tab);
+    } else {
+      const shortest = TAB_DEPTHS_MM.filter((x) => x < defaultDepth - 1e-9).pop();
+      const need = (d: number | undefined) => {
+        const t = fitTab(e, d, DIAGNOSTIC_TAPER_DEGREES);
+        return t ? t.taper : null;
+      };
+      tabsDropped.push({
+        label: e.label,
+        edge: [e.a, e.b],
+        face: e.faces[0],
+        neededTaper: { defaultDepth: need(undefined), shortestDepth: need(shortest) },
+      });
     }
-  });
-  const tabs = live.filter((t): t is Tab => t !== null);
+  }
+  const tabs = placedTabs;
 
   const fp: Vec2[] = [];
   for (const f of faces) fp.push(...f.p);
@@ -574,6 +653,7 @@ export function buildNet(mesh: Mesh, paper: Paper = A4, options: NetOptions = {}
       edges,
       tabs,
       tabsShortened,
+      tabsWidened,
       tabsDropped,
       paper,
       root: chosen.root,
