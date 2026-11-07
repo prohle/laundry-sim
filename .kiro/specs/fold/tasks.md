@@ -15,6 +15,15 @@ Ordered. Each task leaves the repo runnable. Gates are kill criteria, not remind
 - [ ] 1.3 Pick three reference models with published crease patterns (crane, one `.tmd5`
       example, one four-legged animal)
 - [ ] 1.4 Reproduce each; diff vertices and edges against the reference
+      - **Scale parity: 3 of 3, exact.** Against the C++ reference's recorded ALM output
+        (`solver/fixtures/tmModelTester.out.txt`): 0.517637, 0.074658, 0.056381. Measured
+        differences are 0.000000 at six decimals. `solver/tests/parity.rs` enforces this.
+      - Crease pattern built on models 1, 3, 4 and 5. Model 2 fails with
+        `invalid operation: polygon inset distance was not found`, and the test asserts that
+        exact failure so a regression is visible.
+      - **Not done:** a vertex-and-edge diff of the crease pattern. The reference output
+        contains no vertex or edge data, so this cannot be checked against it. Needs a
+        published crease pattern instead — that is 1.3.
 - [x] 1.5 Write down the parity result, pass or fail, with the numbers
       - TreeFaker's engine runs headlessly when bundled with esbuild.
       - The fiveStar and bone trees each solve in about 150 ms and export FOLD.
