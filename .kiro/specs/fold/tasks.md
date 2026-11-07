@@ -215,6 +215,38 @@ to "box-pleated animals".
       - Not done: the user's screenshot was not in the workspace and was not run. Packing-fails
         refusal and a flap-count (too many) refusal on the mask side are separate, still open.
 
+- [~] 3.11 Find the foldable objects in an image instead of refusing when there are several
+      (spec change, added 2026-11-06, user request: a listing screenshot with two green products,
+      dimension arrows and text; the primary mask took the right-hand photograph, whose background is a
+      wooden table, as one solid rectangle)
+      - `src/lib/segment.ts`: candidate segmentation. The existing mask stays the primary path. A colour
+        fallback (k-means, k = 6, in RGB) runs only when the primary yields no candidate that reaches a
+        tree, or its largest component is near-rectangular. Candidates: components of at least 2% of the
+        frame, cap 6, largest first. Each is analysed by the existing pipeline; the best becomes the
+        top-level result, the rest are listed in `candidates`. `significance` and `lambda` defaults unchanged.
+      - The user's image is not in the repo and not in fixtures.
+      - Done: `analyseImage` (`src/lib/segment.ts`), `tools/candidates.ts` (reports, writes nothing),
+        `/api/fold` returns `candidates` and `segmentation`; top-level fields describe the best candidate.
+        `npm test`: 100 pass. Not exercised: the UI (it still shows only the top-level result), `next build`.
+      - Fallback seeding: luminance-quantile centres, 30 Lloyd iterations, no random numbers.
+      - **squid.png (1655x1051, two aquarium ornaments, dimension arrows, captions):** the primary mask
+        already finds both (white page = border colour); it was the *largest-component-only* step that lost
+        the left one. Candidates: left 10.6% of frame, 4 leaves, Easy, ok, pattern built; right 16.4%, the
+        photograph on a wooden table, a solid rectangle (0.942), refused at `mask`. The rectangularity rule
+        triggered the colour fallback anyway. **Colour segmentation does not isolate the objects:** k=6
+        clusters are white 67.9% (all of the border) and five grey-green shades (26,27,26 7.6%; 68,76,74 9.3%;
+        112,127,124 6.6%; 167,158,148 5.5%; 199,205,204 3.1%). The green ornaments and the wood/dark wall of
+        the second photo are spread across those, so the fallback's 3 candidates are fragments (11, 12, 12
+        leaves from texture): one built a pattern but failed Kawasaki at 22 of 134 vertices, two refused at
+        `tier`. The primary result was kept. The 4-leaf Easy result is a moai-shaped block, not a limbed
+        animal: that it folds does not mean it reads as the object.
+      - Fixtures: dog, turtle, tuatara each 1 candidate, primary path, fallback not run, ok (6 leaves, Medium).
+        Beetle: 1 candidate, 12 leaves after budget, refused at `tier` (15 flaps), as before.
+      - Two copies of the dog on one sheet: 2 candidates found, both reach the solver; one fails flatfold
+        because each is at half resolution after the sheet is downscaled to 512 px.
+      - Cost: up to six candidates at ~2-3 s each; the squid took 1.2 s because
+        most were refused early. N1 (20 s) is not checked for a six-candidate image.
+
 **Gate, 20 Nov:** three subjects produce trees that a human accepts after at most two corrections.
 
 ## Phase 4 — Fold it (20–25 Nov)

@@ -12,7 +12,8 @@
  *   400  `tree` is present but is not valid JSON, or is not a connected, acyclic tree inside the sheet
  *   415  not a PNG or JPEG: wrong Content-Type, bytes that do not match it, or an image that will not decode
  *   413  body larger than 10 MiB
- *   200  { ok: true, ... }   a printable pattern, in `pattern`
+ *   200  { ok: true, ... }   a printable pattern, in `pattern`. `candidates` lists every object found, best
+ *        first, and `segmentation` says which path found them; the top-level fields describe the best.
  *   200  { ok: false, refusal: { stage, message }, ... }
  *        `message` is plain words (a reason and a next step) for the user; `detail` is the technical cause.
  *        the pipeline ran and declined (no object, no limbs, below the minimum tier, no mountain/valley, ...).
@@ -26,7 +27,8 @@
  * FOLD_SOLVER names the solver binary; see resolveSolverPath() in src/lib/pipeline.ts.
  */
 import type { NextRequest } from "next/server";
-import { runPipeline, sniffImage, ImageDecodeError } from "@/lib/pipeline";
+import { sniffImage, ImageDecodeError } from "@/lib/pipeline";
+import { analyseImage } from "@/lib/segment";
 import { validateEditedTree } from "@/lib/tree-validate";
 import type { SkeletonTree } from "@/lib/skeleton";
 
@@ -114,7 +116,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   let result;
   try {
-    result = await runPipeline(bytes, editedTree ? { tree: editedTree } : {});
+    result = await analyseImage(bytes, editedTree ? { tree: editedTree } : {});
   } catch (e) {
     if (e instanceof ImageDecodeError) {
       return json({ error: "unsupported_media_type", message: "The image could not be decoded." }, 415);
@@ -159,6 +161,9 @@ export async function POST(request: NextRequest): Promise<Response> {
             svg: result.svg,
           }
         : null,
+      // Every object found (task 3.11), best first; the top-level fields above describe candidates[0].
+      candidates: result.candidates,
+      segmentation: result.segmentation,
       timingsMs: result.timingsMs,
       totalMs: result.totalMs,
     },

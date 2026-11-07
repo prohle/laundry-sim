@@ -43,7 +43,7 @@ import type { FoldFile, FoldValidation } from "../../tools/fold.ts";
 
 const { PNG } = pngjs;
 
-interface Rgb {
+export interface Rgb {
   data: Float32Array; // 3 floats per pixel
   width: number;
   height: number;
@@ -144,7 +144,7 @@ function otsu(values: Float32Array, bins = 256): number {
 }
 
 /** Label 4-connected components of `want` in `mask`; returns labels (0 = not in want) and sizes. */
-function components(mask: Uint8Array, w: number, h: number, want: number) {
+export function components(mask: Uint8Array, w: number, h: number, want: number) {
   const label = new Int32Array(w * h);
   const sizes: number[] = [0];
   const touchesBorder: boolean[] = [false];
@@ -239,6 +239,8 @@ export interface MaskResult {
   droppedComponents: number;
   /** Assessment of the foreground before the largest component was kept (all components). */
   assessment: MaskAssessment;
+  /** The foreground before the largest component was kept (holes filled). Used for candidates. */
+  foreground: Uint8Array;
 }
 
 export function makeMask(img: Rgb): MaskResult {
@@ -304,7 +306,20 @@ export function makeMask(img: Rgb): MaskResult {
     threshold, background: bg, borderSpread, holesFilled,
     droppedComponents: Math.max(0, fg.sizes.length - 2),
     assessment,
+    foreground: raw,
   };
+}
+
+/** Decode and downscale once, so several candidates can share the work. */
+export function prepareImage(bytes: Uint8Array, maxDim = 512): PreparedImage {
+  const src = decode(bytes);
+  return { srcWidth: src.width, srcHeight: src.height, img: downscale(src, maxDim) };
+}
+
+export interface PreparedImage {
+  srcWidth: number;
+  srcHeight: number;
+  img: Rgb;
 }
 
 /** Decode, downscale and mask an image exactly as runPipeline does, without running the rest. */
@@ -491,6 +506,10 @@ export interface PipelineOptions {
    * applied: the user decided what the limbs are. The image is still decoded, for its size only.
    */
   tree?: SkeletonTree;
+  /** Decoded and downscaled image from prepareImage; skips decoding. `bytes` is then ignored. */
+  prepared?: PreparedImage;
+  /** A mask to use instead of makeMask (a candidate from src/lib/segment.ts). */
+  mask?: MaskResult;
 }
 
 /**
@@ -565,12 +584,16 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
   };
 
   // 1. read
-  const src = decode(bytes);
-  mark("decode");
-  const img = downscale(src, maxDim);
-  mark("downscale");
-  r.image = { width: src.width, height: src.height, analysedWidth: img.width, analysedHeight: img.height };
-  say(`image      ${opts.label ?? "upload"}  ${src.width}x${src.height} -> ${img.width}x${img.height}`);
+  let prep = opts.prepared;
+  if (!prep) {
+    const src = decode(bytes);
+    mark("decode");
+    prep = { srcWidth: src.width, srcHeight: src.height, img: downscale(src, maxDim) };
+    mark("downscale");
+  }
+  const img = prep.img;
+  r.image = { width: prep.srcWidth, height: prep.srcHeight, analysedWidth: img.width, analysedHeight: img.height };
+  say(`image      ${opts.label ?? "upload"}  ${prep.srcWidth}x${prep.srcHeight} -> ${img.width}x${img.height}`);
 
   // 2. mask, 3. tree. An edited tree replaces both: it is the user's tree, solved as given.
   let tree: SkeletonTree;
@@ -580,7 +603,7 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
     say(`tree       edited by the user: ${tree.leaves} leaves, ${tree.nodes.length} nodes, ${tree.edges.length} edges; extraction skipped`);
   } else {
     // 2. mask
-    const m = makeMask(img);
+    const m = opts.mask ?? makeMask(img);
     mark("mask");
     r.coverage = m.coverage;
     if (opts.debugImages) r.images.mask = encodeMaskPng(m);
