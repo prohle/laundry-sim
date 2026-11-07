@@ -30,12 +30,70 @@ pub struct EdgeIn {
 }
 
 #[derive(Debug, Serialize, PartialEq)]
+pub struct CreaseOut {
+    pub from: usize,
+    pub to: usize,
+    /// "F" flat, "M" mountain, "V" valley, "B" border (treemaker-core
+    /// FOLD_FLAT/MOUNTAIN/VALLEY/BORDER = 0/1/2/3). "U" for any other code;
+    /// the raw integer is then in `raw`.
+    pub fold: String,
+    pub raw: i32,
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+pub struct CpOut {
+    pub vertices: Vec<[f64; 2]>,
+    pub creases: Vec<CreaseOut>,
+    /// Count of creases per fold letter.
+    pub fold_counts: BTreeMap<String, usize>,
+}
+
+#[derive(Debug, Serialize, PartialEq)]
 pub struct Report {
     pub ok: bool,
     pub converged: bool,
     pub feasible: bool,
     pub scale: f64,
     pub error: Option<String>,
+    /// treemaker-core `cp_status()`, snake_case. `has_full_cp` is the only
+    /// status that means colours, facet order and fold directions were computed.
+    pub cp_status: Option<String>,
+    /// True only if the exported pattern has at least one vertex and crease.
+    /// `ok` alone does not imply this: the crate returns Ok without a pattern.
+    pub cp_built: bool,
+    /// Facet count and per-colour counts (0 = not oriented, 1 = down, 2 = up).
+    pub facet_colors: Option<BTreeMap<i32, usize>>,
+    pub cp: Option<CpOut>,
+}
+
+fn fold_letter(code: i32) -> &'static str {
+    match code {
+        0 => "F",
+        1 => "M",
+        2 => "V",
+        3 => "B",
+        _ => "U",
+    }
+}
+
+/// Vertex and crease indices in treemaker-core are 1-based; the output is 0-based.
+fn export_cp(t: &Tree) -> Result<CpOut, String> {
+    let vertices: Vec<[f64; 2]> = t.vertices.iter().map(|v| [v.loc.x, v.loc.y]).collect();
+    let mut creases = Vec::with_capacity(t.creases.len());
+    let mut fold_counts: BTreeMap<String, usize> = BTreeMap::new();
+    for c in &t.creases {
+        if c.vertices.len() != 2 {
+            return Err(format!("crease {} has {} endpoints", c.index, c.vertices.len()));
+        }
+        let (a, b) = (c.vertices[0], c.vertices[1]);
+        if a == 0 || b == 0 || a > vertices.len() || b > vertices.len() {
+            return Err(format!("crease {} references vertex outside 1..={}", c.index, vertices.len()));
+        }
+        let fold = fold_letter(c.fold).to_string();
+        *fold_counts.entry(fold.clone()).or_insert(0) += 1;
+        creases.push(CreaseOut { from: a - 1, to: b - 1, fold, raw: c.fold });
+    }
+    Ok(CpOut { vertices, creases, fold_counts })
 }
 
 /// Map node coordinates uniformly into [0.1, 0.9] on both axes.
@@ -246,7 +304,7 @@ pub fn tree_to_tmd(tree: &TreeIn) -> Result<String, String> {
 
 /// Parse, optimise the scale, and build the crease pattern.
 pub fn solve(tree: &TreeIn) -> Report {
-    let mut report = Report { ok: false, converged: false, feasible: false, scale: 0.0, error: None };
+    let mut report = Report { ok: false, converged: false, feasible: false, scale: 0.0, error: None, cp_status: None, cp_built: false, facet_colors: None, cp: None };
     let fail = |mut r: Report, msg: String| {
         r.error = Some(msg);
         r
@@ -276,6 +334,21 @@ pub fn solve(tree: &TreeIn) -> Report {
     if let Err(e) = t.build_polys_and_crease_pattern() {
         return fail(report, format!("build_polys_and_crease_pattern: {e}"));
     }
+    report.cp_status = serde_json::to_value(t.cp_status())
+        .ok()
+        .and_then(|v| v.as_str().map(String::from));
+    let mut colors: BTreeMap<i32, usize> = BTreeMap::new();
+    for f in &t.facets {
+        *colors.entry(f.color).or_insert(0) += 1;
+    }
+    report.facet_colors = Some(colors);
+    match export_cp(&t) {
+        Ok(cp) => {
+            report.cp_built = !cp.vertices.is_empty() && !cp.creases.is_empty();
+            report.cp = Some(cp);
+        }
+        Err(e) => return fail(report, format!("export_cp: {e}")),
+    }
     report.ok = true;
     report
 }
@@ -283,9 +356,9 @@ pub fn solve(tree: &TreeIn) -> Report {
 fn main() {
     let mut input = String::new();
     let report = match std::io::stdin().read_to_string(&mut input) {
-        Err(e) => Report { ok: false, converged: false, feasible: false, scale: 0.0, error: Some(format!("stdin: {e}")) },
+        Err(e) => Report { ok: false, converged: false, feasible: false, scale: 0.0, error: Some(format!("stdin: {e}")), cp_status: None, cp_built: false, facet_colors: None, cp: None },
         Ok(_) => match serde_json::from_str::<TreeIn>(&input) {
-            Err(e) => Report { ok: false, converged: false, feasible: false, scale: 0.0, error: Some(format!("json: {e}")) },
+            Err(e) => Report { ok: false, converged: false, feasible: false, scale: 0.0, error: Some(format!("json: {e}")), cp_status: None, cp_built: false, facet_colors: None, cp: None },
             Ok(t) => solve(&t),
         },
     };
@@ -338,6 +411,60 @@ mod tests {
                 .map(|&(a, b)| EdgeIn { from: a as i64, to: b as i64, length: len(a, b) })
                 .collect(),
         }
+    }
+
+    fn assert_cp_valid(r: &Report) {
+        assert!(r.cp_built, "cp_built false, status {:?}", r.cp_status);
+        let cp = r.cp.as_ref().expect("cp present when ok");
+        assert!(!cp.vertices.is_empty(), "no vertices");
+        assert!(!cp.creases.is_empty(), "no creases");
+        for v in &cp.vertices {
+            for c in v {
+                assert!((-1e-9..=1.0 + 1e-9).contains(c), "vertex {v:?} outside [0,1]");
+            }
+        }
+        for c in &cp.creases {
+            assert!(c.from < cp.vertices.len() && c.to < cp.vertices.len(), "bad endpoint {c:?}");
+            assert_ne!(c.from, c.to);
+        }
+        assert_eq!(cp.fold_counts.values().sum::<usize>(), cp.creases.len());
+    }
+
+    #[test]
+    fn solved_trees_export_a_valid_crease_pattern() {
+        let r = solve(&star());
+        assert!(r.ok, "{:?}", r.error);
+        assert_cp_valid(&r);
+        let nodes = [(0., 3.), (0., 1.), (0., -1.), (0., -3.), (-1., 0.), (1., 0.), (-1., -2.), (1., -2.)];
+        let edges = [(0, 1), (1, 2), (2, 3), (1, 4), (1, 5), (2, 6), (2, 7)];
+        let mut tree = tree_from(&nodes, &edges);
+        // Edge lengths here are not the Euclidean distances: with those, the
+        // crate returns Ok and an empty pattern (see the next test).
+        for (e, l) in tree.edges.iter_mut().zip([2.0, 2.0, 2.0, 1.4, 1.4, 1.4, 1.4]) {
+            e.length = l;
+        }
+        let r = solve(&tree);
+        assert!(r.ok, "{:?}", r.error);
+        assert_cp_valid(&r);
+    }
+
+    #[test]
+    fn ok_does_not_imply_a_pattern() {
+        // Finding: converged + feasible + Ok from build_polys_and_crease_pattern,
+        // and still zero vertices and zero creases. cp_built must say so.
+        let nodes = [(0., 3.), (0., 1.), (0., -1.), (0., -3.), (-1., 0.), (1., 0.), (-1., -2.), (1., -2.)];
+        let edges = [(0, 1), (1, 2), (2, 3), (1, 4), (1, 5), (2, 6), (2, 7)];
+        let r = solve(&tree_from(&nodes, &edges));
+        assert!(r.ok && r.converged && r.feasible);
+        assert!(!r.cp_built);
+    }
+
+    #[test]
+    fn fold_codes_map_to_letters() {
+        assert_eq!(
+            [0, 1, 2, 3, 9].map(fold_letter),
+            ["F", "M", "V", "B", "U"]
+        );
     }
 
     #[test]

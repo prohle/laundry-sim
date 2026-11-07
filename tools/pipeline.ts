@@ -1,7 +1,7 @@
 /**
  * Photograph -> silhouette mask -> tree -> solver -> crease pattern, as a script.
  *
- *   node tools/pipeline.ts <image.jpg|png> [--max-leaves 12] [--max-dim 512] [--significance 2.0] [--spur 0] [--out tools/out]
+ *   node tools/pipeline.ts <image.jpg|png> [--max-leaves 12] [--max-dim 512] [--significance 2.0] [--spur 0] [--out tools/out] [--paper 150]
  *
  * Not a UI and not a product surface: it exists to run the existing pieces
  * (src/lib/skeleton.ts, ./solver) on a real image and say what happened.
@@ -27,6 +27,8 @@ import pngjs from "pngjs";
 import { extractTree, DEFAULT_SIGNIFICANCE_THRESHOLD } from "../src/lib/skeleton.ts";
 import type { SkeletonTree, BranchRecord } from "../src/lib/skeleton.ts";
 import { minimumTier, tierReport } from "../src/lib/tiers.ts";
+import { cpToSvg, foldDistribution } from "./cp-to-svg.ts";
+import type { Cp } from "./cp-to-svg.ts";
 
 const { PNG } = pngjs;
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -284,6 +286,10 @@ interface SolverReport {
   feasible: boolean;
   scale: number;
   error: string | null;
+  cp_status: string | null;
+  cp_built: boolean;
+  facet_colors: Record<string, number> | null;
+  cp: Cp | null;
 }
 
 function arg(name: string, fallback: string): string {
@@ -406,13 +412,29 @@ function main(): number {
   // 6. report
   console.log(
     `solver     ok=${report.ok} converged=${report.converged} feasible=${report.feasible} ` +
-      `scale=${report.scale.toFixed(6)} crease pattern built=${report.ok}` +
+      `scale=${report.scale.toFixed(6)} cp_built=${report.cp_built} cp_status=${report.cp_status}` +
       (report.error ? `  error: ${report.error}` : ""),
   );
+  writeFileSync(join(outDir, `${stem}.solver.json`), JSON.stringify(report) + "\n");
+  if (report.cp && report.cp_built) {
+    const dist = foldDistribution(report.cp);
+    const paper = Number(arg("paper", "150"));
+    const svgPath = join(outDir, `${stem}.cp.svg`);
+    writeFileSync(svgPath, cpToSvg(report.cp, paper, { cpStatus: report.cp_status, title: `Fold crease pattern: ${stem}` }));
+    const assigned = (dist.M ?? 0) + (dist.V ?? 0) > 0;
+    console.log(
+      `crease     ${report.cp.vertices.length} vertices, ${report.cp.creases.length} creases; folds ${JSON.stringify(dist)}; ` +
+        `facet colours ${JSON.stringify(report.facet_colors)}; ` +
+        (assigned ? "mountain/valley assigned" : "MOUNTAIN/VALLEY NOT COMPUTED: not printable as a fold sheet") +
+        `; wrote ${svgPath} (${paper} mm)`,
+    );
+  } else {
+    console.log("crease     no crease pattern geometry: the solver returned ok without vertices or creases");
+  }
   const total = performance.now() - t0;
   const steps = Object.entries(lap).map(([k, v]) => `${k} ${v.toFixed(0)} ms`).join(", ");
   console.log(`time       ${(total / 1000).toFixed(2)} s total of the 20 s budget (N1)  [${steps}]`);
-  return report.ok ? 0 : 1;
+  return report.ok && report.cp_built ? 0 : 1;
 }
 
 process.exit(main());

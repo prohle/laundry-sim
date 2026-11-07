@@ -59,7 +59,18 @@ to "box-pleated animals".
 
 - [ ] 2.1 Tree type: nodes, edges, lengths, strain; JSON round-trip
 - [ ] 2.2 Flap budget per tier; monotonicity property test
-- [ ] 2.3 Crease pattern from the solver, as FOLD
+- [~] 2.3 Crease pattern from the solver, as FOLD
+      - Spec change, 2026-11-06 (user request): `fold-solver` now emits `cp` as JSON
+        (`vertices` in [0,1], `creases` with 0-based endpoints and `fold`), plus `cp_status`,
+        `cp_built`, `facet_colors`. Not FOLD format yet. Fold codes read from treemaker-core
+        source: 0 flat (F), 1 mountain (M), 2 valley (V), 3 border (B).
+      - `ok` does not imply a pattern: the crate returns Ok from `build_polys_and_crease_pattern`
+        with zero vertices (seen: 8-node tree with Euclidean edge lengths) or with status
+        `edges_too_short` (beetle, one edge of 0.009 against a 0.01 minimum). Use `cp_built`.
+      - M/V is computed by the crate only when `cp_status` is `has_full_cp` (models 1 and 5, and
+        the dog). Otherwise every crease stays `F`.
+      - `tools/cp-to-svg.ts` renders it (a slice of 5.4, no step count or time yet); an all-F
+        pattern is stamped "Mountain/valley not computed. Do not fold from this sheet."
 - [ ] 2.4 Kawasaki and Maekawa checks at every interior vertex
 - [ ] 2.5 Flat-folded state enumeration; report the count
 - [ ] 2.6 Mountain/valley assignment where the count is one; collapse direction otherwise
