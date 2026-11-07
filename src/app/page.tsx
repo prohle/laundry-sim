@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { SkeletonTree } from "@/lib/skeleton";
 import type { CollapseCp } from "@/lib/collapse";
 import FoldView from "./FoldView";
-import { minimumTier } from "@/lib/tiers";
+import { minimumTier, TIER_TIME_ESTIMATES } from "@/lib/tiers";
+import type { TierAttempt } from "@/lib/ladder";
 import { addLeaf, deleteLeaf, moveLeaf } from "@/lib/tree-edit";
 
 /** The subset of the POST /api/fold response this screen reads. */
@@ -17,6 +18,7 @@ interface FoldResponse {
   pattern: { svg: string | null; cp?: CollapseCp | null } | null;
   contraction?: { contracted: unknown[]; dropped: { leaf: number; length: number }[] } | null;
   totalMs?: number;
+  budget?: { requested: number | null; used: number | null; leaves: number } | null;
   views?: ViewVerdict[];
   disagreement?: string | null;
 }
@@ -30,6 +32,15 @@ interface ViewVerdict {
   chosen: boolean;
   shown: boolean;
   refusal: { stage: string; message: string; detail: string | null } | null;
+  /** All four tiers for this photograph, failures included. Null for an edited tree. */
+  tiers?: TierAttempt[] | null;
+}
+
+/** The tier the server shows by default: the highest that folds, else the minimum. */
+function defaultTier(tiers: TierAttempt[]): number | null {
+  for (let i = tiers.length - 1; i >= 0; i--) if (tiers[i].ok) return i;
+  const first = tiers.findIndex((t) => t.attempted);
+  return first >= 0 ? first : null;
 }
 
 interface Item { id: number; file: File; url: string }
@@ -337,6 +348,10 @@ function Outcome({
   const [folded, setFolded] = useState<SkeletonTree | null>(data.tree);
   const [editNote, setEditNote] = useState<string | null>(null);
   const [folding, setFolding] = useState(false);
+  // All four tiers of the shown photograph, held in memory. Choosing a chip reads from here; no request.
+  const ladder = view.views.find((v) => v.shown)?.tiers ?? null;
+  // The selected tier; null after an edited tree is folded (that tree is solved as given).
+  const [selected, setSelected] = useState<number | null>(ladder ? defaultTier(ladder) : null);
 
   const isResult = data.ok === true && !!svg;
   const dirty = tree !== folded;
@@ -345,7 +360,7 @@ function Outcome({
 
   // A real file: a Blob URL, made in an effect so it survives StrictMode's mount/unmount probe.
   const [download, setDownload] = useState<{ url: string; filename: string } | null>(null);
-  const tierName = data.minimumTier?.tier ?? "pattern";
+  const tierName = (selected !== null && ladder?.[selected]?.tier) || (ladder ? "edited" : data.minimumTier?.tier) || "pattern";
   useEffect(() => {
     if (!svg || !isResult) { setDownload(null); return; }
     const stem = view.shown.file.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "photograph";
@@ -361,6 +376,24 @@ function Outcome({
     } else {
       setEditNote(`${r.message} The tree is unchanged.`);
     }
+  };
+
+  /** Swap tree, pattern, SVG and 3D fold to a tier already in memory. */
+  const chooseTier = (i: number) => {
+    const a = ladder?.[i];
+    if (!a || !a.ok || !a.pattern || !a.tree || folding || i === selected) return;
+    setData((d) => ({
+      ...d, ok: true, refusal: null, tree: a.tree, contraction: a.contraction,
+      pattern: { svg: a.pattern!.svg, cp: a.pattern!.cp as CollapseCp },
+      budget: { requested: a.budget, used: a.budget, leaves: a.leaves ?? 0 },
+    }));
+    setSvg(a.pattern.svg);
+    setRefusalMessage("");
+    setTree(a.tree);
+    setFolded(a.tree);
+    proposed.current = a.tree;
+    setEditNote(null);
+    setSelected(i);
   };
 
   const foldThis = async () => {
@@ -382,6 +415,7 @@ function Outcome({
       setSvg(next.ok === true ? next.pattern?.svg ?? null : null);
       setRefusalMessage(next.refusal?.message ?? "The pipeline did not produce a printable pattern.");
       setFolded(tree);
+      setSelected(null);
     } catch {
       setEditNote("The server could not be reached. The tree is unchanged.");
     } finally {
@@ -404,6 +438,37 @@ function Outcome({
         </div>
         <p className="summary__reason">{tier?.reason ?? ""}</p>
       </div>
+
+      {ladder && (
+        <div className="tiers" role="group" aria-label="Difficulty tier">
+          <div className="tiers__chips">
+            {ladder.map((t, i) => {
+              const isMin = t.attempted && !ladder.slice(0, i).some((x) => x.attempted);
+              const status = t.ok ? (t.sameAs ? `same as ${cap(t.sameAs)}` : isMin ? "minimum" : null) : t.short;
+              return (
+                <button
+                  key={t.tier}
+                  type="button"
+                  className="tiers__chip"
+                  aria-pressed={selected === i}
+                  disabled={!t.ok || folding}
+                  onClick={() => chooseTier(i)}
+                >
+                  <span className="tiers__name">{cap(t.tier)} {t.budget}</span>
+                  <span className="tiers__sub">{t.budget} flaps, about {TIER_TIME_ESTIMATES[t.tier]}</span>
+                  {status && <span className="tiers__sub">{status}</span>}
+                </button>
+              );
+            })}
+          </div>
+          <p className="tiers__help" role="status">
+            {folding ? "Folding" : selected === null
+              ? "The pattern was made from your edited tree. Choose a tier to go back to the photograph's tree."
+              : "Only tiers that fold can be chosen. Times are estimates, not yet measured."}
+            {data.budget && selected !== null && !folding ? ` Flaps in this pattern: ${data.budget.leaves}.` : ""}
+          </p>
+        </div>
+      )}
 
       {views.length > 1 && <ViewsTable items={view.items} views={views} disagreement={disagreement} />}
 
@@ -495,7 +560,7 @@ function Outcome({
 
       {isResult && !dirty && (
         // Paper size matches the printable sheet: the pipeline default of 150 mm.
-        <FoldView cp={data.pattern?.cp} paperMm={150} />
+        <FoldView key={selected ?? "edited"} cp={data.pattern?.cp} paperMm={150} />
       )}
 
       {isResult && (

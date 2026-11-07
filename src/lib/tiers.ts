@@ -35,6 +35,14 @@ export const TIERS: readonly Tier[] = [
   { tier: "expert", budget: 12 },
 ];
 
+/**
+ * Time to fold, from the design's ladder table. Estimates, not measurements: they are to be measured
+ * on reference models (task 4.1) and the screen says so.
+ */
+export const TIER_TIME_ESTIMATES: Record<TierName, string> = {
+  easy: "15 min", medium: "40 min", hard: "1.5 h", expert: "3 h",
+};
+
 export const MAX_BUDGET = TIERS[TIERS.length - 1].budget;
 
 export interface MinimumTier {

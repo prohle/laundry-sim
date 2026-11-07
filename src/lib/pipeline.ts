@@ -28,9 +28,9 @@ import jpeg from "jpeg-js";
 import pngjs from "pngjs";
 import { extractTree, DEFAULT_SIGNIFICANCE_THRESHOLD } from "./skeleton.ts";
 import type { SkeletonTree, BranchRecord } from "./skeleton.ts";
-import { selectThreshold } from "./select.ts";
+import { selectThreshold, SWEEP_THRESHOLDS } from "./select.ts";
 import type { Selection } from "./select.ts";
-import { minimumTier, tierReport } from "./tiers.ts";
+import { minimumTier, tierReport, treeForTier, TIERS } from "./tiers.ts";
 import type { MinimumTier, TierRow } from "./tiers.ts";
 import { contractShortEdges, DEFAULT_CONTRACT_THRESHOLD } from "./contract.ts";
 import type { ContractResult } from "./contract.ts";
@@ -532,6 +532,14 @@ export interface PipelineOptions {
   prepared?: PreparedImage;
   /** A mask to use instead of makeMask (a candidate from src/lib/segment.ts). */
   mask?: MaskResult;
+  /**
+   * Chosen flap budget (4, 6, 8 or 12), spec change 2026-11-06. Below the subject's required leaf count
+   * the view is refused (stage `tier`). At the required count the tree is the one the default would use.
+   * Above it, the tree is re-extracted at the highest swept significance threshold that leaves at least the budget
+   * (else the lowest) and cut back to the budget by `treeForTier`, so a higher tier keeps more flaps
+   * and the pattern is re-solved. Ignored for an edited tree beyond the below-required refusal.
+   */
+  budget?: number;
 }
 
 /**
@@ -562,6 +570,8 @@ export interface PipelineResult {
   selection: Selection | null;
   minimum: MinimumTier | null;
   tiers: TierRow[] | null;
+  /** Requested budget (null = none, minimum tier used), the budget used, and the leaves actually solved. */
+  budget: { requested: number | null; used: number | null; leaves: number } | null;
   solver: SolverReport | null;
   /** The JSON given to the solver on stdin. */
   solverInput: string | null;
@@ -590,7 +600,7 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
   const solverPath = opts.solverPath ?? resolveSolverPath();
   const r: PipelineResult = {
     ok: false, refusal: null, fault: null, log: [], image: null, coverage: null, tree: null,
-    contraction: null, selection: null, minimum: null, tiers: null, solver: null, solverInput: null, assigned: false,
+    contraction: null, selection: null, minimum: null, tiers: null, budget: null, solver: null, solverInput: null, assigned: false,
     fold: null, foldCheck: null, foldFacesOmitted: null, flatFold: null, svg: null,
     images: { mask: null, overlay: null }, timingsMs: lap, totalMs: 0,
   };
@@ -620,6 +630,8 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
   // 2. mask, 3. tree. An edited tree replaces both: it is the user's tree, solved as given.
   let tree: SkeletonTree;
   let sigOnly: SkeletonTree;
+  let fullTree: SkeletonTree | null = null;
+  let fullThreshold = SWEEP_THRESHOLDS[0];
   if (opts.tree) {
     tree = sigOnly = opts.tree;
     say(`tree       edited by the user: ${tree.leaves} leaves, ${tree.nodes.length} nodes, ${tree.edges.length} edges; extraction skipped`);
@@ -687,6 +699,15 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
     const diagnostics: BranchRecord[] = [];
     sigOnly = extractTree(frame, { significanceThreshold, spurThreshold, diagnostics });
     tree = extractTree(frame, { significanceThreshold, spurThreshold, maxLeaves });
+    if (opts.budget !== undefined) {
+      // The least-pruned tree the budget needs: the highest swept threshold that still leaves at least
+      // `budget` leaves, else the lowest threshold. Less noise than always taking the lowest.
+      for (const th of [...SWEEP_THRESHOLDS].reverse()) {
+        fullTree = extractTree(frame, { significanceThreshold: th, spurThreshold });
+        fullThreshold = th;
+        if (fullTree.leaves >= opts.budget) break;
+      }
+    }
     mark("skeleton");
     if (opts.debugImages) r.images.overlay = encodeOverlayPng(img, m, tree);
     say(
@@ -777,9 +798,34 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
     );
   }
 
+  // 3c. Chosen budget. Below the requirement: refuse. Above it: more flaps, re-solved.
+  let budgeted = false;
+  r.budget = { requested: opts.budget ?? null, used: TIERS.find((t) => t.tier === min.tier)!.budget, leaves: solverTree.leaves };
+  if (opts.budget !== undefined) {
+    const chosen = TIERS.find((t) => t.budget === opts.budget);
+    if (!chosen) throw new RangeError(`budget must be one of ${TIERS.map((t) => t.budget).join(", ")}`);
+    if (chosen.budget < min.requiredLeaves) {
+      r.budget.used = null; // refused: nothing was solved at this budget
+      const label = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+      const msg = `This subject needs ${min.requiredLeaves} flaps; ${label(chosen.tier)} allows ${chosen.budget}. The cheapest version is ${label(min.tier)}.`;
+      return refuse("tier", msg, `REFUSED    ${msg}`, `budget ${chosen.budget} is below the ${min.requiredLeaves} leaves of the significance-pruned tree`);
+    }
+    r.budget.used = chosen.budget;
+    if (chosen.budget > min.requiredLeaves && fullTree) {
+      const full = contractThreshold > 0 ? contractShortEdges(fullTree, contractThreshold).tree : fullTree;
+      solverTree = treeForTier(full, chosen.budget);
+      budgeted = true;
+      r.tree = solverTree;
+      r.budget.leaves = solverTree.leaves;
+      say(`budget     ${chosen.tier} (${chosen.budget}): re-extracted at significance ${fullThreshold}, ${full.leaves} leaves, kept ${solverTree.leaves} by significance rank`);
+    } else {
+      say(`budget     ${chosen.tier} (${chosen.budget}): ${min.requiredLeaves} flaps needed, tree as for the minimum`);
+    }
+  }
+
   // 4 + 5. Solver. When contraction changed the tree, the original is run first for comparison.
   const timeoutMs = opts.solverTimeoutMs ?? DEFAULT_SOLVER_TIMEOUT_MS;
-  const changed = !!treeContraction && (treeContraction.contracted.length > 0 || treeContraction.dropped.length > 0);
+  const changed = !budgeted && !!treeContraction && (treeContraction.contracted.length > 0 || treeContraction.dropped.length > 0);
   if (changed) {
     const before = await runSolver(solverPath, tree, timeoutMs);
     if ("report" in before) {

@@ -293,6 +293,39 @@ to "box-pleated animals".
       - Not done: drag-and-drop was not exercised (files set on the input); `next build` not run here; the
         four-image limit and the remove control were not scripted.
 
+- [~] 3.18 Choose a tier per view; a harder tier re-solves with more flaps (R3.1, R3.3, R3.4)
+      (spec change, added 2026-11-06, user request)
+      - `/api/fold` takes `budget` (4/6/8/12) or `tier` (query on the raw body, form fields on multipart); 400 if
+        invalid or they disagree. Below the required count: refused at `tier`, "This subject needs 6 flaps; Easy
+        allows 4. The cheapest version is Medium." Above it: re-extract at the highest swept threshold leaving at
+        least the budget, contract, `treeForTier`, solve. `budget: {requested, used, leaves}` top level and per view.
+      - Screen: chips Easy 4 / Medium 6 / Hard 8 / Expert 12 under the verdict; minimum selected and marked; lower
+        chips disabled with "needs N flaps"; wraps at 390 px. `src/lib/budget.test.ts`, 3 tests.
+      - **Observed: no harder tier folds on any fixture.** Turtle Hard 8 leaves, 55 v / 100 creases, `polys_not_valid`,
+        refused (no M/V); Expert 12 leaves, 146 v / 297 creases, `has_full_cp`, refused at flatfold. Dog and tuatara
+        likewise (dog 8: `polys_not_valid`; tuatara 8: flatfold). The pattern is withheld, so the screen shows a
+        refusal, not a new pattern. Only the minimum tier is currently printable.
+
+- [~] 3.19 All four tiers in one request; offer only the ones that fold (R3.1, R3.3, R3.4)
+      (spec change, added 2026-11-06, user request; replaces the one-request-per-tier flow of 3.18 on the screen)
+      - Motivation, measured by the user on the turtle: budget 6 `has_full_cp`; 8 `polys_not_valid` (no M/V); 12
+        `has_full_cp` with 23 of 108 interior vertices not flat-foldable. Stars of 8 and 10 leaves solve, so the limit
+        is the extracted tree's shape, not the flap count.
+      - `src/lib/ladder.ts`: per view, the minimum tier is the no-budget run; each higher tier is re-extracted and
+        solved; tiers below the minimum are reported with the tier refusal, not run. `views[].tiers` has four entries.
+        Top-level fields describe the highest tier that folds, else the minimum. `budget`/`tier` request parameter
+        keeps its old single-run behaviour and returns `tiers: null` on the views.
+      - Screen: four chips always visible; selecting one swaps tree, pattern, SVG and 3D fold from memory.
+      - Measured (direct call, one view): turtle 10.1 s for the ladder; Medium has_full_cp 46 v / 91 c, ok; Hard
+        8 leaves polys_not_valid 55 v / 100 c all F; Expert 12 leaves has_full_cp 146 v / 297 c, 23 of 108 vertices
+        fail flatfold. Solver per tier 100 / 21 / 27 ms; each tier ~2.5 s, almost all in extraction. Dog 7.1 s (Hard,
+        Expert polys_not_valid); tuatara 8.3 s (Hard flatfold 1 of 67, Expert polys_not_valid). Only Medium folds on all three.
+      - Verified in headless Chromium at 1280 and 390 px on the turtle: four chips, Medium selected, Easy "needs 6 flaps",
+        Hard "solver could not pack it", Expert "would not lie flat"; pattern and 3D fold shown; one request, none on
+        chip click; no console errors; overflow 0 px. `tools/out/alltiers-{1280,390}.png`. `npm run check`: 109 pass.
+      - Not done: swapping between two foldable tiers is not exercised, because no fixture has two; "same as" never
+        fires on the fixtures. The ladder is 3-4x the old single-run time; N1 (20 s) holds for one view, not checked for four.
+
 **Gate, 20 Nov:** three subjects produce trees that a human accepts after at most two corrections.
 
 ## Phase 4 — Fold it (20–25 Nov)

@@ -1,6 +1,9 @@
 /**
  * POST /api/fold — photograph in, geometry out.
  *
+ * Every view carries `tiers`: all four tiers attempted (task 3.19), each with its reason when it does not fold; null
+ * for an edited tree or an explicit `budget`/`tier`, which keep their single-run behaviour.
+ *
  * Request: either
  *   - the raw image bytes as the body, Content-Type image/png or image/jpeg (extract a tree, solve it); or
  *   - multipart/form-data with an `image` file part and a `tree` text part holding the tree as JSON
@@ -28,10 +31,11 @@
  */
 import type { NextRequest } from "next/server";
 import { sniffImage, ImageDecodeError } from "@/lib/pipeline";
-import { analyseImage } from "@/lib/segment";
-import { analyseViews, singleViewReport, MAX_VIEWS, type ViewsAnalysis } from "@/lib/views";
+import type { Analysis } from "@/lib/segment";
+import { analyseViews, MAX_VIEWS, type ViewsAnalysis } from "@/lib/views";
 import { validateEditedTree } from "@/lib/tree-validate";
 import type { SkeletonTree } from "@/lib/skeleton";
+import { TIERS } from "@/lib/tiers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -69,6 +73,17 @@ async function readCapped(request: Request): Promise<Uint8Array | null> {
   return out;
 }
 
+/** `budget` (4, 6, 8, 12) or `tier` (easy..expert) -> a budget. undefined = none given; null = invalid. */
+function parseBudget(budget: string | null, tier: string | null): number | undefined | null {
+  if (budget === null && tier === null) return undefined;
+  const byTier = tier === null ? undefined : TIERS.find((t) => t.tier === tier.trim().toLowerCase())?.budget;
+  if (tier !== null && byTier === undefined) return null;
+  const byBudget = budget === null ? undefined : TIERS.find((t) => String(t.budget) === budget.trim())?.budget;
+  if (budget !== null && byBudget === undefined) return null;
+  if (byTier !== undefined && byBudget !== undefined && byTier !== byBudget) return null;
+  return byBudget ?? byTier;
+}
+
 export async function POST(request: NextRequest): Promise<Response> {
   const contentType = request.headers.get("content-type") ?? "";
   const type = contentType.split(";")[0].trim().toLowerCase();
@@ -81,6 +96,11 @@ export async function POST(request: NextRequest): Promise<Response> {
     json({ error: "payload_too_large", message: `The photograph must be under ${MAX_BYTES / 1024 / 1024} MiB.` }, 413);
   const declared = Number(request.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > MAX_BYTES) return tooLarge();
+  // Raw body: ?budget= or ?tier= in the query. Multipart: form fields of the same names (read below).
+  let budget = parseBudget(request.nextUrl.searchParams.get("budget"), request.nextUrl.searchParams.get("tier"));
+  const badBudget = () =>
+    json({ error: "bad_request", message: "`budget` must be 4, 6, 8 or 12, and `tier` easy, medium, hard or expert, and they must agree." }, 400);
+  if (budget === null) return badBudget();
   const raw = await readCapped(request);
   if (raw === null) return tooLarge();
 
@@ -93,6 +113,12 @@ export async function POST(request: NextRequest): Promise<Response> {
       form = await new Response(new Blob([raw as BlobPart]), { headers: { "content-type": contentType } }).formData();
     } catch {
       return json({ error: "bad_request", message: "The multipart form could not be read." }, 400);
+    }
+    const fb = form.get("budget"), ft = form.get("tier");
+    if ((fb !== null && typeof fb !== "string") || (ft !== null && typeof ft !== "string")) return badBudget();
+    if (fb !== null || ft !== null) {
+      budget = parseBudget(fb as string | null, ft as string | null);
+      if (budget === null) return badBudget();
     }
     const images = form.getAll("image").filter((x): x is File => x instanceof Blob);
     if (images.length === 0) {
@@ -129,11 +155,10 @@ export async function POST(request: NextRequest): Promise<Response> {
   if (extra.some((b) => sniffImage(b) === null)) {
     return json({ error: "unsupported_media_type", message: "Every photograph must be a PNG or JPEG image." }, 415);
   }
-  let result: Awaited<ReturnType<typeof analyseImage>> & Partial<ViewsAnalysis>;
+  const opts = { ...(editedTree ? { tree: editedTree } : {}), ...(budget !== undefined ? { budget } : {}) };
+  let result: Analysis & Partial<ViewsAnalysis>;
   try {
-    result = extra.length
-      ? await analyseViews([bytes, ...extra])
-      : await analyseImage(bytes, editedTree ? { tree: editedTree } : {});
+    result = await analyseViews([bytes, ...extra], opts);
   } catch (e) {
     if (e instanceof ImageDecodeError) {
       return json({ error: "unsupported_media_type", message: "The image could not be decoded." }, 415);
@@ -158,6 +183,8 @@ export async function POST(request: NextRequest): Promise<Response> {
       },
       minimumTier: result.minimum,
       tiers: result.tiers,
+      // Budget requested (null = minimum tier), budget used and leaves solved, for the shown view; per view in `views`.
+      budget: result.budget,
       solver: solver && {
         ok: solver.ok,
         converged: solver.converged,
@@ -182,7 +209,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       candidates: result.candidates,
       segmentation: result.segmentation,
       // Several photographs (R1.4, R1.5): every view, and the warning if they disagree. With one photograph, `views` has one entry and `disagreement` is null.
-      views: result.views ?? [singleViewReport(result)],
+      views: result.views,
       disagreement: result.disagreement ?? null,
       timingsMs: result.timingsMs,
       totalMs: result.totalMs,
