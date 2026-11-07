@@ -201,7 +201,19 @@ to "box-pleated animals".
       - Not done: lengthen an edge by itself (length follows the drag), mask-aware add (any click on the
         photo adds), keyboard/touch not exercised by script, no test of the UI beyond one scripted run.
         Whether the turtle pattern reads as a turtle is unknown (4.x).
-- [ ] 3.5 Refusal states: no limbs, too many limbs, packing fails
+- [~] 3.5 Refusal states: no limbs, too many limbs, packing fails
+      - Spec change, 2026-11-06 (user request, from a real listing screenshot that reached the solver
+        as a rectangle and was refused with `polys_not_valid`): `assessMask` in `src/lib/pipeline.ts`
+        reports coverage, components (largest first), largest share and rectangularity, taken before
+        the largest component is kept. New refusals, plain message, numbers in `detail`: two or more
+        components each >= 15% of the largest (stage `mask`); rectangularity > 0.92 (stage `mask`);
+        fewer than 3 leaves in the tree handed to the solver (stage `tree`). The existing 2%/90%
+        coverage refusal is unchanged. `src/lib/refusals.test.ts`, 11 tests, in `npm test` (95 pass).
+      - Measured rectangularity: dog 0.507, turtle 0.616, tuatara 0.370, beetle 0.405. Thresholds are
+        the specified ones, not calibrated; four subjects, none near 0.92. Rectangularity uses the
+        axis-aligned box, so a rotated rectangle scores lower and is not caught.
+      - Not done: the user's screenshot was not in the workspace and was not run. Packing-fails
+        refusal and a flap-count (too many) refusal on the mask side are separate, still open.
 
 **Gate, 20 Nov:** three subjects produce trees that a human accepts after at most two corrections.
 

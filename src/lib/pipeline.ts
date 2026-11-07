@@ -170,6 +170,63 @@ function components(mask: Uint8Array, w: number, h: number, want: number) {
   return { label, sizes, touchesBorder };
 }
 
+/** A component at least this fraction of the largest counts as a second object. */
+export const MULTI_OBJECT_RATIO = 0.15;
+/** Largest component area / bounding-box area above this is "nearly a rectangle". */
+export const RECTANGULARITY_LIMIT = 0.92;
+/** A tree with fewer leaves than this has no limbs to fold. */
+export const MIN_LEAVES = 3;
+
+export interface MaskAssessment {
+  /** All foreground pixels as a fraction of the frame. */
+  coverage: number;
+  foregroundPixels: number;
+  /** 4-connected component pixel counts, largest first. */
+  components: number[];
+  /** Largest component / total foreground. 0 when there is no foreground. */
+  largestShare: number;
+  /** Components with at least MULTI_OBJECT_RATIO of the largest, the largest included. */
+  significantComponents: number;
+  /** Largest component area / its axis-aligned bounding-box area. 0 when there is no foreground. */
+  rectangularity: number;
+}
+
+/**
+ * Describe a binary mask (1 = foreground) before any tree is built from it. Pure; reads only
+ * the mask. Rectangularity uses the axis-aligned box, so a rectangle rotated off-axis scores lower.
+ */
+export function assessMask(mask: Uint8Array, w: number, h: number): MaskAssessment {
+  const c = components(mask, w, h, 1);
+  const n = c.sizes.length - 1;
+  const x0 = new Int32Array(n + 1).fill(w), y0 = new Int32Array(n + 1).fill(h);
+  const x1 = new Int32Array(n + 1).fill(-1), y1 = new Int32Array(n + 1).fill(-1);
+  for (let i = 0; i < w * h; i++) {
+    const id = c.label[i];
+    if (!id) continue;
+    const x = i % w, y = (i - x) / w;
+    if (x < x0[id]) x0[id] = x;
+    if (x > x1[id]) x1[id] = x;
+    if (y < y0[id]) y0[id] = y;
+    if (y > y1[id]) y1[id] = y;
+  }
+  const ids = Array.from({ length: n }, (_, i) => i + 1).sort((a, b) => c.sizes[b] - c.sizes[a]);
+  const components_ = ids.map((id) => c.sizes[id]);
+  const total = components_.reduce((s, v) => s + v, 0);
+  if (n === 0) {
+    return { coverage: 0, foregroundPixels: 0, components: [], largestShare: 0, significantComponents: 0, rectangularity: 0 };
+  }
+  const big = ids[0];
+  const boxArea = (x1[big] - x0[big] + 1) * (y1[big] - y0[big] + 1);
+  return {
+    coverage: total / (w * h),
+    foregroundPixels: total,
+    components: components_,
+    largestShare: components_[0] / total,
+    significantComponents: components_.filter((s) => s >= MULTI_OBJECT_RATIO * components_[0]).length,
+    rectangularity: components_[0] / boxArea,
+  };
+}
+
 export interface MaskResult {
   mask: Uint8Array;
   width: number;
@@ -180,6 +237,8 @@ export interface MaskResult {
   borderSpread: number;
   holesFilled: number;
   droppedComponents: number;
+  /** Assessment of the foreground before the largest component was kept (all components). */
+  assessment: MaskAssessment;
 }
 
 export function makeMask(img: Rgb): MaskResult {
@@ -223,6 +282,10 @@ export function makeMask(img: Rgb): MaskResult {
     if (!bgc.touchesBorder[id] && bgc.sizes[id] < holeLimit) holesFilled++;
   }
 
+  // Assess everything that was found, before the largest is kept: the multi-object and
+  // rectangle refusals need the components that the next step throws away.
+  const assessment = assessMask(raw, w, h);
+
   // Keep the largest foreground component.
   const fg = components(raw, w, h, 1);
   let best = 0;
@@ -240,6 +303,7 @@ export function makeMask(img: Rgb): MaskResult {
     coverage: count / (w * h),
     threshold, background: bg, borderSpread, holesFilled,
     droppedComponents: Math.max(0, fg.sizes.length - 2),
+    assessment,
   };
 }
 
@@ -525,12 +589,36 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
         `threshold ${m.threshold.toFixed(1)}, border spread ${m.borderSpread.toFixed(1)}, ` +
         `coverage ${(m.coverage * 100).toFixed(1)}%, ${m.holesFilled} holes filled, ${m.droppedComponents} components dropped`,
     );
+    const a = m.assessment;
+    say(
+      `assess     foreground ${(a.coverage * 100).toFixed(1)}% of frame in ${a.components.length} components ` +
+        `(${a.components.slice(0, 5).join(", ")}${a.components.length > 5 ? ", ..." : ""} px); ` +
+        `${a.significantComponents} at least ${MULTI_OBJECT_RATIO * 100}% of the largest; largest share ${(a.largestShare * 100).toFixed(1)}%; ` +
+        `rectangularity ${a.rectangularity.toFixed(3)}`,
+    );
     if (m.coverage > 0.9 || m.coverage < 0.02) {
       return refuse(
         "mask",
         "I can't find a single object. Try a plainer background.",
         "REFUSED    I can't find a single object. Try a plainer background. (R1.3: coverage outside 2%..90%)",
         `silhouette covers ${(m.coverage * 100).toFixed(1)}% of the frame; allowed 2% to 90%`,
+      );
+    }
+    if (a.significantComponents >= 2) {
+      return refuse(
+        "mask",
+        "This looks like more than one object. Photograph one object on its own.",
+        "REFUSED    This looks like more than one object. Photograph one object on its own.",
+        `${a.significantComponents} components are each at least ${MULTI_OBJECT_RATIO * 100}% of the largest; ` +
+          `sizes ${a.components.slice(0, 5).join(", ")} px; largest share of foreground ${(a.largestShare * 100).toFixed(1)}%`,
+      );
+    }
+    if (a.rectangularity > RECTANGULARITY_LIMIT) {
+      return refuse(
+        "mask",
+        "This shape is nearly a rectangle, so there is nothing to fold. Try an object with a distinctive outline.",
+        "REFUSED    This shape is nearly a rectangle, so there is nothing to fold. Try an object with a distinctive outline.",
+        `rectangularity ${a.rectangularity.toFixed(3)} of the largest component exceeds ${RECTANGULARITY_LIMIT}`,
       );
     }
 
@@ -615,6 +703,14 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
     }
   }
   r.tree = solverTree;
+  if (solverTree.leaves < MIN_LEAVES) {
+    return refuse(
+      "tree",
+      "This shape has too few limbs to fold. Try an animal or an object with clear protrusions.",
+      `REFUSED    This shape has too few limbs to fold. (${solverTree.leaves} leaves, at least ${MIN_LEAVES} needed)`,
+      `tree handed to the solver has ${solverTree.leaves} leaves; at least ${MIN_LEAVES} needed`,
+    );
+  }
 
   // 3b. Minimum tier (R3.3, R3.4). Uses the significance-pruned tree WITHOUT the flap budget:
   // a tree already cut to maxLeaves can never say it needs more than maxLeaves.
