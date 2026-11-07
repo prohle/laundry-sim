@@ -46,6 +46,12 @@ pub struct CpOut {
     pub creases: Vec<CreaseOut>,
     /// Count of creases per fold letter.
     pub fold_counts: BTreeMap<String, usize>,
+    /// Facets as 0-based vertex indices, in the crate's order. Empty unless every
+    /// facet is well formed (flagged by the crate, at least 3 vertices, indices in range):
+    /// a partial face list would describe a different sheet, so it is all or nothing.
+    pub faces: Vec<Vec<usize>>,
+    /// Why `faces` is empty, when it is.
+    pub faces_note: Option<String>,
 }
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -93,7 +99,29 @@ fn export_cp(t: &Tree) -> Result<CpOut, String> {
         *fold_counts.entry(fold.clone()).or_insert(0) += 1;
         creases.push(CreaseOut { from: a - 1, to: b - 1, fold, raw: c.fold });
     }
-    Ok(CpOut { vertices, creases, fold_counts })
+    let (faces, faces_note) = export_faces(t, vertices.len());
+    Ok(CpOut { vertices, creases, fold_counts, faces, faces_note })
+}
+
+/// All-or-nothing facet export. See `CpOut::faces`.
+fn export_faces(t: &Tree, n_vertices: usize) -> (Vec<Vec<usize>>, Option<String>) {
+    if t.facets.is_empty() {
+        return (Vec::new(), Some("the crate built no facets".into()));
+    }
+    let mut faces = Vec::with_capacity(t.facets.len());
+    for f in &t.facets {
+        if !f.is_well_formed {
+            return (Vec::new(), Some(format!("facet {} is not well formed", f.index)));
+        }
+        if f.vertices.len() < 3 {
+            return (Vec::new(), Some(format!("facet {} has {} vertices", f.index, f.vertices.len())));
+        }
+        if f.vertices.iter().any(|&v| v == 0 || v > n_vertices) {
+            return (Vec::new(), Some(format!("facet {} references a vertex outside 1..={}", f.index, n_vertices)));
+        }
+        faces.push(f.vertices.iter().map(|v| v - 1).collect());
+    }
+    (faces, None)
 }
 
 /// Map node coordinates uniformly into [0.1, 0.9] on both axes.

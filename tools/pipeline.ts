@@ -1,7 +1,7 @@
 /**
  * Photograph -> silhouette mask -> tree -> solver -> crease pattern, as a script.
  *
- *   node tools/pipeline.ts <image.jpg|png> [--max-leaves 12] [--max-dim 512] [--significance 2.0] [--spur 0] [--out tools/out] [--paper 150]
+ *   node tools/pipeline.ts <image.jpg|png> [--max-leaves 12] [--max-dim 512] [--significance 2.0] [--spur 0] [--contract 0.012] [--out tools/out] [--paper 150]
  *
  * Not a UI and not a product surface: it exists to run the existing pieces
  * (src/lib/skeleton.ts, ./solver) on a real image and say what happened.
@@ -27,8 +27,11 @@ import pngjs from "pngjs";
 import { extractTree, DEFAULT_SIGNIFICANCE_THRESHOLD } from "../src/lib/skeleton.ts";
 import type { SkeletonTree, BranchRecord } from "../src/lib/skeleton.ts";
 import { minimumTier, tierReport } from "../src/lib/tiers.ts";
+import { contractShortEdges, DEFAULT_CONTRACT_THRESHOLD } from "../src/lib/contract.ts";
+import type { ContractResult } from "../src/lib/contract.ts";
 import { cpToSvg, foldDistribution } from "./cp-to-svg.ts";
 import type { Cp } from "./cp-to-svg.ts";
+import { cpToFold, validateFold } from "./fold.ts";
 
 const { PNG } = pngjs;
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -289,8 +292,37 @@ interface SolverReport {
   cp_status: string | null;
   cp_built: boolean;
   facet_colors: Record<string, number> | null;
-  cp: Cp | null;
+  cp: (Cp & { faces?: number[][]; faces_note?: string | null }) | null;
 }
+
+/** Run ./solver on a tree. Null (with a printed reason) if it cannot run or its output is not JSON. */
+function runSolver(tree: SkeletonTree): { report: SolverReport; json: string } | null {
+  const json = JSON.stringify({
+    nodes: tree.nodes.map((n) => ({ id: n.id, x: n.x, y: n.y })),
+    edges: tree.edges.map((e) => ({ from: e.from, to: e.to, length: e.length })),
+  });
+  const run = spawnSync(SOLVER, [], { input: json, encoding: "utf8", timeout: 60_000 });
+  if (run.error) {
+    console.log(`solver     could not run ${SOLVER}: ${run.error.message}`);
+    return null;
+  }
+  try {
+    return { report: JSON.parse(run.stdout) as SolverReport, json };
+  } catch {
+    console.log(`solver     unparseable output (exit ${run.status}): ${run.stdout.slice(0, 200)} ${run.stderr.slice(0, 200)}`);
+    return null;
+  }
+}
+
+const CP_STATUS_REASON: Record<string, string> = {
+  edges_too_short: "an edge is shorter than the solver's 0.01 minimum",
+  polys_not_valid: "the polygons from the packing are not valid",
+  polys_not_filled: "the packing leaves a polygon with no node",
+  polys_multiple_ibps: "a polygon has more than one inactive border path",
+  vertices_lack_depth: "some vertices have no fold depth",
+  facets_not_valid: "the facets are not valid",
+  not_local_root_connectable: "the fold order cannot be connected to a local root",
+};
 
 function arg(name: string, fallback: string): string {
   const i = process.argv.indexOf(`--${name}`);
@@ -371,12 +403,41 @@ function main(): number {
     return 1;
   }
 
+  // 3a. Contract sub-minimum edges (task 3.7). The minimum tier is computed on the contracted,
+  // budget-free tree too: a leaf dropped here is a flap the subject no longer has.
+  const contractThreshold = Number(arg("contract", String(DEFAULT_CONTRACT_THRESHOLD)));
+  let sigC = sigOnly;
+  let solverTree = tree;
+  let treeContraction: ContractResult | null = null;
+  if (contractThreshold > 0) {
+    try {
+      sigC = contractShortEdges(sigOnly, contractThreshold).tree;
+      treeContraction = contractShortEdges(tree, contractThreshold);
+      solverTree = treeContraction.tree;
+    } catch (e) {
+      console.log(`REFUSED    ${(e as Error).message} (edge contraction, threshold ${contractThreshold})`);
+      return 1;
+    }
+    const c = treeContraction;
+    console.log(
+      `contract   threshold ${contractThreshold}: ${c.contracted.length} edges contracted, ${c.dropped.length} leaves dropped; ` +
+        `${tree.nodes.length} -> ${solverTree.nodes.length} nodes, ${tree.leaves} -> ${solverTree.leaves} leaves`,
+    );
+    for (const x of c.contracted) console.log(`             edge of ${x.length.toFixed(4)}: node ${x.removed} merged into node ${x.kept}`);
+    for (const x of c.dropped) {
+      console.log(
+        `             DROPPED LEAF ${x.leaf} (edge ${x.length.toFixed(4)} to node ${x.parent}` +
+          `${x.significance === null ? "" : `, significance ${x.significance.toFixed(2)}`}): too short to fold, one flap fewer`,
+      );
+    }
+  }
+
   // 3b. Minimum tier (R3.3, R3.4). Uses the significance-pruned tree WITHOUT the flap budget:
   // a tree already cut to maxLeaves can never say it needs more than maxLeaves.
-  const min = minimumTier(sigOnly);
+  const min = minimumTier(sigC);
   console.log(`minimum    ${min.requiredLeaves} significant leaves -> ${min.tier ?? "none"}. ${min.reason}`);
   console.log("tiers      tier     budget  leaves  dropped  representable");
-  for (const r of tierReport(sigOnly)) {
+  for (const r of tierReport(sigC)) {
     console.log(
       `           ${r.tier.padEnd(8)} ${String(r.budget).padStart(6)}  ${String(r.leaves).padStart(6)}  ${String(r.dropped).padStart(7)}  ${r.representable}`,
     );
@@ -386,28 +447,23 @@ function main(): number {
     return 1;
   }
 
-  // 4. JSON in the shape ./solver expects
-  const json = JSON.stringify({
-    nodes: tree.nodes.map((n) => ({ id: n.id, x: n.x, y: n.y })),
-    edges: tree.edges.map((e) => ({ from: e.from, to: e.to, length: e.length })),
-  });
-  writeFileSync(join(outDir, `${stem}.tree.json`), json + "\n");
-  mark("json");
-
-  // 5. solver
-  const run = spawnSync(SOLVER, [], { input: json, encoding: "utf8", timeout: 60_000 });
+  // 4 + 5. Solver. When contraction changed the tree, the original is run first for comparison.
+  const changed = !!treeContraction && (treeContraction.contracted.length > 0 || treeContraction.dropped.length > 0);
+  if (changed) {
+    const before = runSolver(tree);
+    if (before) {
+      console.log(
+        `before     uncontracted tree: ok=${before.report.ok} cp_built=${before.report.cp_built} cp_status=${before.report.cp_status}` +
+          (before.report.error ? `  error: ${before.report.error}` : ""),
+      );
+    }
+  }
+  const ran = runSolver(solverTree);
   mark("solver");
-  if (run.error) {
-    console.log(`solver     could not run ${SOLVER}: ${run.error.message}`);
-    return 1;
-  }
-  let report: SolverReport | null = null;
-  try {
-    report = JSON.parse(run.stdout) as SolverReport;
-  } catch {
-    console.log(`solver     unparseable output (exit ${run.status}): ${run.stdout.slice(0, 200)} ${run.stderr.slice(0, 200)}`);
-    return 1;
-  }
+  if (!ran) return 1;
+  const report = ran.report;
+  writeFileSync(join(outDir, `${stem}.tree.json`), ran.json + "\n");
+  mark("json");
 
   // 6. report
   console.log(
@@ -416,6 +472,8 @@ function main(): number {
       (report.error ? `  error: ${report.error}` : ""),
   );
   writeFileSync(join(outDir, `${stem}.solver.json`), JSON.stringify(report) + "\n");
+  let foldValid = false;
+  let printable = true;
   if (report.cp && report.cp_built) {
     const dist = foldDistribution(report.cp);
     const paper = Number(arg("paper", "150"));
@@ -428,13 +486,34 @@ function main(): number {
         (assigned ? "mountain/valley assigned" : "MOUNTAIN/VALLEY NOT COMPUTED: not printable as a fold sheet") +
         `; wrote ${svgPath} (${paper} mm)`,
     );
+    const { fold, facesOmitted } = cpToFold(report.cp, { cpStatus: report.cp_status });
+    const check = validateFold(fold);
+    const foldPath = join(outDir, `${stem}.fold.json`);
+    writeFileSync(foldPath, JSON.stringify(fold) + "\n");
+    console.log(
+      `fold       wrote ${foldPath}; valid=${check.ok}; ` +
+        (facesOmitted ? `faces_vertices OMITTED (${facesOmitted})` : `faces_vertices ${fold.faces_vertices!.length} faces, area ${check.faceArea!.toFixed(4)}`),
+    );
+    for (const m of check.errors) console.log(`             error: ${m}`);
+    for (const m of check.warnings) console.log(`             warning: ${m}`);
+    foldValid = check.ok;
+    if (!assigned) {
+      console.log(
+        `REFUSED    Not printable: the solver built geometry (cp_status ${report.cp_status}) but computed no mountain/valley assignment. ` +
+          `The SVG and the FOLD are marked "not computed"; do not fold from them.`,
+      );
+      printable = false;
+    }
   } else {
-    console.log("crease     no crease pattern geometry: the solver returned ok without vertices or creases");
+    const why = report.error
+      ? `the solver failed: ${report.error}`
+      : (CP_STATUS_REASON[report.cp_status ?? ""] ?? `the solver returned no crease pattern (cp_status ${report.cp_status})`);
+    console.log(`REFUSED    No crease pattern for this tree: ${why}. Nothing to print.`);
   }
   const total = performance.now() - t0;
   const steps = Object.entries(lap).map(([k, v]) => `${k} ${v.toFixed(0)} ms`).join(", ");
   console.log(`time       ${(total / 1000).toFixed(2)} s total of the 20 s budget (N1)  [${steps}]`);
-  return report.ok && report.cp_built ? 0 : 1;
+  return report.ok && report.cp_built && foldValid && printable ? 0 : 1;
 }
 
 process.exit(main());

@@ -69,6 +69,15 @@ to "box-pleated animals".
         `edges_too_short` (beetle, one edge of 0.009 against a 0.01 minimum). Use `cp_built`.
       - M/V is computed by the crate only when `cp_status` is `has_full_cp` (models 1 and 5, and
         the dog). Otherwise every crease stays `F`.
+      - Spec change, 2026-11-06 (user request): FOLD 1.1 export, `tools/fold.ts`, written by the
+        pipeline to `tools/out/<name>.fold.json`, with a structural validator. `fold-solver` also
+        emits `cp.faces` (0-based, from `Facet.vertices`, only for well-formed facets).
+      - Done: `Facet.vertices` is well formed on both subjects (counter-clockwise, 54 and 75 faces),
+        so `faces_vertices` is written. It is omitted, with the reason, if any facet is not.
+        Validator checks edge and face indices, vertices in [0,1], assignment length, face winding.
+      - **Open finding:** faces cover 0.84 of the unit square on both subjects. The `B` creases are
+        not the paper edge: none has both ends on the square. The pattern is the packed polygon,
+        not a full sheet, so a simulator would fold a smaller shape than the paper. Not investigated.
       - `tools/cp-to-svg.ts` renders it (a slice of 5.4, no step count or time yet); an all-F
         pattern is stamped "Mountain/valley not computed. Do not fold from this sheet."
 - [ ] 2.4 Kawasaki and Maekawa checks at every interior vertex
@@ -121,6 +130,15 @@ to "box-pleated animals".
         point, not a universal value. The flap budget (`maxLeaves`) now drops the lowest-significance
         leaf first, ties by shorter pixel length, instead of the shortest by pixels. At 2.0 / budget 12:
         beetle 37 -> 8 -> 8 leaves, dog 18 -> 6 -> 6; both solve and build a crease pattern.
+- [~] 3.7 Contract sub-minimum edges before the solver (`src/lib/contract.ts`)
+      (spec change, added 2026-11-06, user request: the beetle fails with `edges_too_short`)
+      - Edges shorter than a threshold (default 0.012, crate minimum 0.01) are contracted; a leaf
+        edge below the threshold drops that leaf, and the drop is reported, never silent.
+      - Done: 8 tests pass (a 0.009 edge reproduces `edges_too_short`, contracts, then solves).
+        Beetle: `edges_too_short` -> `polys_multiple_ibps`. A pattern of 73 vertices and 147 creases
+        is built, but every crease is `F`: no mountain/valley, so the pipeline refuses to call it
+        printable. Dog: no short edge, `has_full_cp` before and after.
+
 - [x] 3.3 Minimum-tier computation from the tree
       - `src/lib/tiers.ts`: `rankLeaves`, `treeForTier`, `minimumTier`, `tierReport`. Budgets 4/6/8/12.
         `extractTree` now returns `leafSignificance` (the existing length/radius measure), which
