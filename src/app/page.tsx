@@ -355,6 +355,7 @@ function Outcome({
 
   const isResult = data.ok === true && !!svg;
   const dirty = tree !== folded;
+  const showFold = isResult && !dirty;
   const tier = dirty && tree ? minimumTier(tree) : data.minimumTier;
   const flaps = tree?.leaves ?? null;
 
@@ -472,7 +473,7 @@ function Outcome({
 
       {views.length > 1 && <ViewsTable items={view.items} views={views} disagreement={disagreement} />}
 
-      <div className="panel-split">
+      <div className={`panel-split${showFold ? " panel-split--fold" : ""}`}>
         <div className="panel-col">
           <div className="panel-header">
             <span className="panel-header__label">
@@ -556,12 +557,19 @@ function Outcome({
             </div>
           )}
         </div>
+        {showFold && (
+          <>
+            <div className="panel-split__divider" />
+            <div className="panel-col">
+              <div className="panel-header">
+                <span className="panel-header__label">3D fold, computed from the pattern</span>
+              </div>
+              {/* Paper size matches the printable sheet: the pipeline default of 150 mm. */}
+              <FoldView key={selected ?? "edited"} cp={data.pattern?.cp} paperMm={150} />
+            </div>
+          </>
+        )}
       </div>
-
-      {isResult && !dirty && (
-        // Paper size matches the printable sheet: the pipeline default of 150 mm.
-        <FoldView key={selected ?? "edited"} cp={data.pattern?.cp} paperMm={150} />
-      )}
 
       {isResult && (
         <div className="actions">

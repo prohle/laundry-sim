@@ -820,9 +820,9 @@ button.upload-label:disabled {
 }
 
 /* Collapse illustration (FoldView) */
-.fold-view { margin: 24px auto 0; max-width: 960px; padding: 0 16px; }
+.fold-view { min-width: 0; }
 .fold-view__title { font-size: 13px; letter-spacing: 0.04em; margin: 0 0 8px; opacity: 0.8; }
-.fold-view__canvas { width: 100%; aspect-ratio: 4 / 3; max-height: 70vh; background: #15151a; border-radius: 6px; overflow: hidden; }
+.fold-view__canvas { width: 100%; aspect-ratio: 4 / 3; max-height: 40vh; background: #15151a; border-radius: 6px; overflow: hidden; }
 .fold-view__canvas canvas { width: 100%; height: 100%; display: block; }
 .fold-view__controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
 .fold-view__slider { display: flex; flex-direction: column; flex: 1 1 200px; font-size: 13px; gap: 2px; }
@@ -860,3 +860,43 @@ button.upload-label:disabled {
 .tiers__chip:disabled { opacity: 0.55; cursor: not-allowed; }
 .tiers__sub { font-size: 0.8em; }
 .tiers__help { margin: 0; font-size: 0.9em; }
+
+/* Photograph, pattern and 3D fold share one row from 1100 px (the 3D column carries the step list). */
+.panel-split--fold { grid-template-columns: 1fr; }
+.panel-split--fold > .panel-split__divider { display: none; }
+.outcome .panel-split--fold > .panel-col { border-top: var(--divider) solid var(--color-border); }
+.outcome .panel-split--fold > .panel-col:first-child { border-top: 0; }
+@media (min-width: 768px) {
+  .panel-split--fold { grid-template-columns: 1fr 1fr; }
+  .outcome .panel-split--fold > .panel-col:nth-child(3) { border-top: 0; border-left: var(--divider) solid var(--color-border); }
+  .outcome .panel-split--fold > .panel-col:nth-child(5) { grid-column: 1 / -1; }
+}
+@media (min-width: 1100px) {
+  .panel-split--fold { grid-template-columns: 1fr 1fr 1.1fr; }
+  .outcome .panel-split--fold > .panel-col { border-top: 0; }
+  .outcome .panel-split--fold > .panel-col + .panel-col { border-left: var(--divider) solid var(--color-border); }
+  .outcome .panel-split--fold > .panel-col:nth-child(5) { grid-column: auto; }
+}
+.fold-view .panel-header { margin-bottom: 8px; }
+.fold-view__caption { font-size: 12px; color: var(--color-text-dim); margin: 8px 0 0; max-width: 60ch; }
+.fold-view__long { font-size: 13px; color: var(--color-accent); margin: 6px 0 0; }
+.steps { list-style: none; margin: 8px 0 0; padding: 0; max-height: 200px; overflow-y: auto; position: relative;
+  border: var(--divider) solid var(--color-border); border-radius: var(--radius); }
+.steps__row { display: grid; grid-template-columns: 2.2em 4.6em 3.2em 1fr; gap: 8px; align-items: baseline; width: 100%;
+  padding: 6px 8px; background: transparent; border: 0; border-left: 3px solid transparent; color: var(--color-text);
+  font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.steps__row:hover, .steps__row:focus-visible { background: rgba(255, 255, 255, 0.05); outline: none; }
+.steps__row--done { opacity: 0.4; }
+.steps__row--current { background: var(--color-accent-dim); border-left-color: var(--color-accent); opacity: 1; }
+.steps__num { font-variant-numeric: tabular-nums; color: var(--color-accent); }
+.steps__angle { font-variant-numeric: tabular-nums; }
+.steps__hint { color: var(--color-text-dim); min-width: 0; overflow-wrap: anywhere; }
+
+@media (min-width: 1100px) {
+  .fold-view__canvas { aspect-ratio: 2 / 1; }
+  .steps { max-height: 120px; }
+}
+.fold-view__controls { gap: 6px; margin-top: 6px; }
+.fold-view__controls button.upload-label { padding: 4px 10px; font-size: 11px; min-height: 0; }
+.fold-view__slider { flex: 1 1 110px; font-size: 11px; }
+.fold-view .steps { margin-top: 6px; }

@@ -407,6 +407,22 @@ to "box-pleated animals".
         Verified in the container: beetle -> `assignment` refusal in plain words, `detail` keeps `polys_multiple_ibps`.
         Other stages reworded but not each triggered by script (contract, tier, flatfold, solver).
       - Not done: keyboard and drag-drop were not exercised by script; `public/ort` (32 MB, imgly runtime) is now unused and not deleted.
+- [x] 5.3b 3D fold beside the pattern, with a clickable step list (`src/lib/steps.ts`, `FoldView.tsx`, `page.tsx`)
+      (spec change, added 2026-11-06, user request; R5.1, R5.2)
+      - Three columns from 1100 px (photograph, pattern, 3D fold with the list beneath); 768-1099 px two columns with
+        the fold below; stacked under 768. One row per folding hinge, parents before children: number, mountain or
+        valley, angle, hint. The hint is the hinge midpoint's position about the sheet centre plus the count of panels
+        that turn with it; no body parts are named. Clicking row k seeks to t = k/n; the current row is highlighted,
+        earlier rows dimmed; the active hinge is an amber bar drawn without depth test. Default mode is now
+        "one crease at a time" (the list is meaningless in "together"). Caption says it is not a verified human sequence;
+        more than 60 steps shows a long-model warning (not triggered by any fixture).
+      - Observed, turtle, headless Chromium, `next dev`: 91 creases, 47 M/V, 45 hinges, 25 folding hinges = 25 rows.
+        1280x800: canvas 387-581, list 666-786, both inside the viewport at scroll 0; the photograph and pattern
+        columns are taller than the viewport. Click step 5: fold t 0 -> 0.2 (5/25), active hinge 5, 4 rows dimmed.
+        Play from there: t 0.387 mid-play with step 10 current; ends t = 1, step 25 current. No console errors,
+        overflow 0 px at 1280 and 390. At 390 the fold stacks below the pattern, below the first screen.
+        Screenshots `tools/out/steps-*.png`. Added `src/app/icon.svg` to stop a favicon 404.
+      - Not done: dog (53 hinges per the request) not run; mid-play marker only sampled once; touch not exercised.
 - [ ] 5.4 Printable pattern with legend, paper size, step count, time estimate
 - [ ] 5.5 Mobile at 390 px; deploy to a stable public URL
       - Spec change, 2026-11-06 (user decision): deployment requires a container host able to run

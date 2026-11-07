@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { buildCollapse, collapseFrame, measureFrame } from "@/lib/collapse";
+import { buildCollapse, collapseFrame, hingeSegment, measureFrame } from "@/lib/collapse";
+import { currentStep, describeSteps, LONG_MODEL_STEPS } from "@/lib/steps";
 import type { CollapseCp, CollapseMode } from "@/lib/collapse";
 
 const PLAY_SECONDS = 8;
@@ -17,7 +18,7 @@ export default function FoldView({ cp, paperMm }: { cp: CollapseCp | null | unde
   const model = build.ok ? build.model : null;
 
   const [t, setT] = useState(0);
-  const [mode, setMode] = useState<CollapseMode>("together");
+  const [mode, setMode] = useState<CollapseMode>("sequence");
   const [playing, setPlaying] = useState(false);
 
   const mountRef = useRef<HTMLDivElement>(null);
@@ -25,10 +26,12 @@ export default function FoldView({ cp, paperMm }: { cp: CollapseCp | null | unde
   // Playback lives in refs: the animation loop writes vertices and renders without going through React.
   // `t` in state is only a copy for the slider and the labels, synced ~10 times a second while playing.
   const tRef = useRef(0);
-  const modeRef = useRef<CollapseMode>("together");
+  const modeRef = useRef<CollapseMode>("sequence");
   const playingRef = useRef(false);
   const applyRef = useRef<((t: number) => void) | null>(null);
   const appliedRef = useRef("");
+  const listRef = useRef<HTMLOListElement>(null);
+  const rows = useMemo(() => (model ? describeSteps(model) : []), [model]);
   const seek = (x: number) => { tRef.current = x; setT(x); };
 
   // Scene: built once per model.
@@ -68,6 +71,16 @@ export default function FoldView({ cp, paperMm }: { cp: CollapseCp | null | unde
     const mesh2 = new THREE.Mesh(geometry, back);
     scene.add(mesh, mesh2);
 
+    // The active hinge: an amber bar drawn without depth testing, so it shows from any orbit angle.
+    const markerGeometry = new THREE.CylinderGeometry(paperMm * 0.007, paperMm * 0.007, 1, 10);
+    const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xe8a33d, depthTest: false, depthWrite: false });
+    const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+    marker.renderOrder = 10;
+    marker.frustumCulled = false;
+    marker.visible = false;
+    scene.add(marker);
+    const yAxis = new THREE.Vector3(0, 1, 0);
+
     const resize = () => {
       const w = host.clientWidth || 1, h = host.clientHeight || 1;
       renderer.setSize(w, h, false);
@@ -91,6 +104,19 @@ export default function FoldView({ cp, paperMm }: { cp: CollapseCp | null | unde
       pos.needsUpdate = true;
       geometry.computeVertexNormals();
       appliedRef.current = `${modeRef.current}:${tt}`;
+      const idx = modeRef.current === "sequence" ? currentStep(model.active.length, tt) : -1;
+      if (idx >= 0) {
+        const [p, q] = hingeSegment(model, frame, model.active[idx]);
+        const a = new THREE.Vector3(...p), d = new THREE.Vector3(...q).sub(a);
+        marker.position.copy(a).addScaledVector(d, 0.5);
+        marker.quaternion.setFromUnitVectors(yAxis, d.clone().normalize());
+        marker.scale.set(1, Math.max(d.length(), 1e-3), 1);
+        marker.visible = true;
+        host.dataset.activeStep = String(idx + 1);
+      } else {
+        marker.visible = false;
+        host.dataset.activeStep = "";
+      }
       host.dataset.foldT = String(tt);
       draw();
     };
@@ -101,6 +127,8 @@ export default function FoldView({ cp, paperMm }: { cp: CollapseCp | null | unde
       ro.disconnect();
       controls.dispose();
       geometry.dispose();
+      markerGeometry.dispose();
+      markerMaterial.dispose();
       front.dispose();
       back.dispose();
       renderer.dispose();
@@ -150,6 +178,17 @@ export default function FoldView({ cp, paperMm }: { cp: CollapseCp | null | unde
     applyRef.current?.(t);
   }, [mode, t]);
 
+  // Keep the current row inside the list's own scroll box without moving the page.
+  const activeIdx = model && mode === "sequence" ? currentStep(model.stats.steps, t) : -1;
+  useEffect(() => {
+    const list = listRef.current;
+    const el = list && activeIdx >= 0 ? (list.children[activeIdx] as HTMLElement | undefined) : undefined;
+    if (!list || !el) return;
+    if (el.offsetTop < list.scrollTop || el.offsetTop + el.offsetHeight > list.scrollTop + list.clientHeight) {
+      list.scrollTop = Math.max(0, el.offsetTop - list.clientHeight / 2);
+    }
+  }, [activeIdx]);
+
   if (!model) {
     return (
       <section className="fold-view" aria-label="Collapse illustration">
@@ -170,13 +209,13 @@ export default function FoldView({ cp, paperMm }: { cp: CollapseCp | null | unde
     setMode("sequence");
     seek(Math.min(1, Math.max(0, k / n)));
   };
+  const active = activeIdx;
   const current = mode === "sequence" ? Math.round(t * n * 1e6) / 1e6 : null;
   const m = measure!;
   const closes = m.maxVertexSplitMm < 0.01;
 
   return (
     <section className="fold-view" aria-label="Collapse illustration">
-      <p className="fold-view__title">Collapse illustration — computed from the crease pattern</p>
       <div ref={mountRef} className="fold-view__canvas" data-testid="fold-canvas" />
 
       <div className="fold-view__controls">
@@ -205,6 +244,33 @@ export default function FoldView({ cp, paperMm }: { cp: CollapseCp | null | unde
         </label>
       </div>
 
+      <ol ref={listRef} className="steps" aria-label={`Folding steps, ${n} hinges`} data-testid="step-list">
+        {rows.map((r, i) => (
+          <li key={r.number}>
+            <button
+              type="button"
+              className={`steps__row${i === active ? " steps__row--current" : ""}${i < active ? " steps__row--done" : ""}`}
+              aria-current={i === active ? "step" : undefined}
+              data-step={r.number}
+              onClick={() => goStep(r.number)}
+            >
+              <span className="steps__num">{r.number}</span>
+              <span className="steps__dir">{r.direction}</span>
+              <span className="steps__angle">{r.angle}°</span>
+              <span className="steps__hint">{r.hint}</span>
+            </button>
+          </li>
+        ))}
+      </ol>
+
+      <p className="fold-view__caption">
+        A crease-by-crease guide computed from the pattern. It is not a verified human folding sequence; we do not have one.
+      </p>
+      {n > LONG_MODEL_STEPS && (
+        <p className="fold-view__long" role="alert">
+          This model has {n} steps, more than {LONG_MODEL_STEPS}. It is long to fold.
+        </p>
+      )}
       <p className="fold-view__status" role="status">
         {mode === "sequence"
           ? `One crease at a time, parents before children: ${step} of ${n} creases fully folded.`

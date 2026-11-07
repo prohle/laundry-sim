@@ -432,3 +432,34 @@ export function measureFrame(model: CollapseModel, frame: CollapseFrame): FrameM
     maxVertexSplitMm: split,
   };
 }
+
+const flatCache = new WeakMap<CollapseModel, Map<number, [number, number, number]>>();
+
+/** A cp vertex on the flat sheet, in mm. */
+export function flatVertex(model: CollapseModel, v: number): [number, number, number] {
+  let m = flatCache.get(model);
+  if (!m) {
+    m = new Map();
+    for (let c = 0; c < model.cornerVertex.length; c++) {
+      const u = model.cornerVertex[c];
+      if (!m.has(u)) m.set(u, [model.flat[c * 3], model.flat[c * 3 + 1], 0]);
+    }
+    flatCache.set(model, m);
+  }
+  return m.get(v)!;
+}
+
+/**
+ * The two end points of a hinge in a frame, in mm. The hinge axis does not move relative to its parent
+ * panel, so the parent's transform places it.
+ */
+export function hingeSegment(
+  model: CollapseModel, frame: CollapseFrame, hinge: Hinge,
+): [[number, number, number], [number, number, number]] {
+  const T = frame.transforms[hinge.parent]!;
+  const place = (v: number): [number, number, number] => {
+    const w = apply(T.R, flatVertex(model, v));
+    return [w[0] + T.t[0], w[1] + T.t[1], w[2] + T.t[2]];
+  };
+  return [place(hinge.a), place(hinge.b)];
+}
