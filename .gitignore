@@ -23,3 +23,6 @@ _local/
 
 # SQLite database written at runtime — never commit
 data/
+
+# Pipeline debug output (masks, overlays, tree JSON)
+tools/out/

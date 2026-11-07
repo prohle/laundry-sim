@@ -81,6 +81,17 @@ to "box-pleated animals".
 - [x] 3.2 Skeleton → tree with limb lengths, normalised to the square
       - Coordinates normalised to [0,1] on the longer axis, aspect preserved. A `frame`
         field maps back to pixels so the tree can be drawn over the photo (R2.2).
+- [~] 3.6 End-to-end script `tools/pipeline.ts`: image -> mask -> `extractTree` -> `./solver`
+      (spec change, added 2026-11-06: no task covered running 3.1, 3.2 and 1.9 together on a real image)
+      - First real image: CC0 photograph of a beetle (`fixtures/README.md`). Runs end to end in
+        about 0.5 s; solver converged, feasible, crease pattern built.
+      - It exposed a bug in 3.1: at a "fat" junction `buildGraph` split the skeleton into three
+        graphs and `makeTree` kept the left half, so the hind leg was lost. Fixed, with a
+        regression test (`src/lib/skeleton.photo.test.ts`) that fails without the fix.
+      - **Not done:** the tree is not yet one a human would accept. With the default spur
+        threshold the beetle gives 23 leaves (12 after the flap budget), several on the
+        wing-case edge with no limb under them, and the antennae are lost by the threshold mask.
+        One image only. Passing the 20 Nov gate needs three subjects.
 - [ ] 3.3 Minimum-tier computation from the tree
 - [ ] 3.4 Human-in-the-loop correction: drag, lengthen, delete
 - [ ] 3.5 Refusal states: no limbs, too many limbs, packing fails

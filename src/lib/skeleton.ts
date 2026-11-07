@@ -155,6 +155,27 @@ function buildGraph(skel: Uint8Array, W: number, H: number): Graph {
     }
   }
 
+  // Fat junctions. Where a junction pixel has two path neighbours that also touch each
+  // other (a staircase around the junction), a branch walk can curl round the junction
+  // pixel and back into its own cluster. That makes a self-loop and marks the first pixel
+  // of two real arms as visited, stranding them: the graph splits and the heaviest part
+  // is kept, so a whole limb vanishes. Absorb such pixels into the junction instead, so
+  // every walk starts one pixel clear of it. Found on a real photograph (tools/pipeline.ts).
+  const absorb: number[] = [];
+  for (let i = 0; i < W * H; i++) {
+    if (kind[i] !== KIND_NODE) continue;
+    const near: number[] = [];
+    for (let k = 0; k < 8; k++) if (kind[i + off[k]] === KIND_PATH) near.push(i + off[k]);
+    for (let a = 0; a < near.length; a++) {
+      for (let b = a + 1; b < near.length; b++) {
+        const dx = Math.abs((near[a] % W) - (near[b] % W));
+        const dy = Math.abs(Math.floor(near[a] / W) - Math.floor(near[b] / W));
+        if (dx <= 1 && dy <= 1) absorb.push(near[a], near[b]);
+      }
+    }
+  }
+  for (const i of absorb) kind[i] = KIND_NODE;
+
   // Cluster 8-connected node pixels.
   const label = new Int32Array(W * H).fill(-1);
   const clusters: number[][] = [];
