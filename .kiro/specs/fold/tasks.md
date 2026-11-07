@@ -216,6 +216,17 @@ to "box-pleated animals".
         the dog's coverage. Nothing tuned. Physical fold on hold until this is understood.
       - Kawasaki default tolerance is now 2e-5 rad (`src/lib/flatfold.ts`); the largest residual is
         still reported.
+- [~] 5.0 Product screen `src/app/page.tsx`: empty, processing, result, refusal (and a fault state)
+      - Spec change, 2026-11-06 (user request): replaces the relief UI. Deleted `Relief3D.tsx`,
+        `src/lib/crease.ts`, `src/lib/db.ts`, `src/app/api/plans/route.ts`; removed dependencies
+        `@imgly/background-removal`, `three`, `@types/three` and the `next.config.ts` alias that existed for imgly.
+        `/api/fold` now also returns `pattern.svg` (already built by the pipeline, previously dropped).
+      - Photo with tree overlay (frame mapping, SVG viewBox = analysed pixel grid), minimum tier and reason,
+        inline SVG, Blob-URL download. No pattern is rendered unless `ok` is true and an SVG is present.
+      - Verified in headless Chromium: dog 6 leaves, Medium, pattern; beetle refusal, no pattern; no console
+        errors; no horizontal overflow at 1280 or 390 px. Screenshots `tools/out/ui-*.png`.
+      - Not done: keyboard and drag-drop were not exercised by script; the refusal text is the pipeline's own
+        and contains solver jargon; `public/ort` (32 MB, imgly runtime) is now unused and not deleted.
 - [ ] 5.4 Printable pattern with legend, paper size, step count, time estimate
 - [ ] 5.5 Mobile at 390 px; deploy to a stable public URL
       - Spec change, 2026-11-06 (user decision): deployment requires a container host able to run

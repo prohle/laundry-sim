@@ -118,6 +118,8 @@ export async function POST(request: NextRequest): Promise<Response> {
             fold: result.fold,
             foldValid: result.foldCheck?.ok ?? false,
             flatFold: result.flatFold,
+            // Printable sheet at the stated paper size, for inline display and download.
+            svg: result.svg,
           }
         : null,
       timingsMs: result.timingsMs,
