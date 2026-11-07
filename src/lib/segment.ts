@@ -280,7 +280,7 @@ export async function analyseImage(bytes: Uint8Array, opts: PipelineOptions = {}
     const r = await runPipeline(bytes, opts);
     return { ...r, candidates: [], segmentation: { path: "primary", fallbackReason: null, primaryCandidates: 0, primaryRectangularity: 0, clusters: null, fallbackCandidates: null } };
   }
-  const prepared = prepareImage(bytes, opts.maxDim ?? 512);
+  const prepared = opts.prepared ?? prepareImage(bytes, opts.maxDim ?? 512);
   const { img } = prepared;
   const m = makeMask(img);
   const fgComps = componentMasks(m.foreground, img.width, img.height, 1);

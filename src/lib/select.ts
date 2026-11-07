@@ -92,10 +92,11 @@ export interface SweepRow {
 }
 
 /** Extract and score a tree at every threshold. `value` is filled in later by `penalise`. */
-export function sweep(input: SkeletonInput, thresholds: readonly number[] = SWEEP_THRESHOLDS): SweepRow[] {
+export function sweep(input: SkeletonInput, thresholds: readonly number[] = SWEEP_THRESHOLDS, keep?: SkeletonTree[]): SweepRow[] {
   const dt = distanceTransform(input);
   return thresholds.map((threshold) => {
     const tree = extractTree(input, { significanceThreshold: threshold });
+    keep?.push(tree);
     return { threshold, leaves: tree.leaves, iou: reconstructionScore(tree, input, dt).iou, value: 0 };
   });
 }
@@ -124,11 +125,32 @@ export interface Selection {
   lambda: number;
   rows: SweepRow[];
   chosen: number;
+  /** The tree extracted at each row's threshold (same order as `rows`), kept so the ladder can reuse them. */
+  trees: SkeletonTree[];
 }
 
 /** Sweep, penalise and pick. No human decision per image. */
 export function selectThreshold(input: SkeletonInput, lambda: number = DEFAULT_LAMBDA): Selection {
-  const rows = sweep(input);
+  const trees: SkeletonTree[] = [];
+  const rows = sweep(input, SWEEP_THRESHOLDS, trees);
   const chosen = penalise(rows, lambda);
-  return { threshold: rows[chosen].threshold, lambda, rows, chosen };
+  return { threshold: rows[chosen].threshold, lambda, rows, chosen, trees };
+}
+
+/**
+ * The cached sweep tree a flap budget should start from: the smallest leaf count that is at least
+ * `budget` (ties to the higher threshold, i.e. the less noisy tree); if none is large enough, the one
+ * with the most leaves. Pure; no extraction.
+ */
+export function pickSweepTree(sel: Pick<Selection, "rows" | "trees">, budget: number): { tree: SkeletonTree; threshold: number } {
+  let best = -1;
+  sel.trees.forEach((t, i) => {
+    if (best < 0) { best = i; return; }
+    const b = sel.trees[best];
+    const tOk = t.leaves >= budget, bOk = b.leaves >= budget;
+    if (tOk !== bOk) { if (tOk) best = i; return; }
+    if (tOk) { if (t.leaves < b.leaves || (t.leaves === b.leaves && sel.rows[i].threshold > sel.rows[best].threshold)) best = i; }
+    else if (t.leaves > b.leaves) best = i; // none large enough: most leaves, first (lightest) wins ties
+  });
+  return { tree: sel.trees[best], threshold: sel.rows[best].threshold };
 }

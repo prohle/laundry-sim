@@ -326,6 +326,14 @@ to "box-pleated animals".
       - Not done: swapping between two foldable tiers is not exercised, because no fixture has two; "same as" never
         fires on the fixtures. The ladder is 3-4x the old single-run time; N1 (20 s) holds for one view, not checked for four.
 
+- [x] 3.20 Ladder reuses the sweep's trees instead of re-extracting per tier
+      (spec change, added 2026-11-06, user request; refines 3.19)
+      - `Selection.trees` keeps the 13 sweep trees; `pickSweepTree` takes the smallest leaf count >= the budget,
+        else the most leaves. Tier runs skip extraction (`PipelineOptions.reuse`) and the ladder decodes the image
+        once. Medium is the base run, so it is unchanged by construction.
+      - README: "four to twelve flaps" replaced by four to six in practice; ladder offers only tiers that fold;
+        step and time figures are estimates.
+
 **Gate, 20 Nov:** three subjects produce trees that a human accepts after at most two corrections.
 
 ## Phase 4 — Fold it (20–25 Nov)

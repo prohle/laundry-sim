@@ -7,8 +7,9 @@ produce a pattern with a mountain/valley assignment.
 
 > A photograph becomes a foldable crease pattern, at the complexity you choose.
 
-Category: Frankenstein. Supported class: animals with visible limbs on a plain background, four to
-twelve flaps, one square, no cuts.
+Category: Frankenstein. Supported class: animals with visible limbs on a plain background, one
+square, no cuts. In practice four to six flaps: on the three animal fixtures, Medium (six flaps)
+is the only tier that folds. Hard and Expert are attempted and refused, with the reason shown.
 
 ## The chimera
 
@@ -29,7 +30,9 @@ becomes the paper, and the output leaves the screen.
    its limbs explain the silhouette, minus a penalty per leaf. The best-scoring tree is drawn
    over your photograph. No human chooses per image.
 3. The minimum tier is computed from the number of significant flaps and shown with the reason:
-   Easy 4, Medium 6, Hard 8, Expert 12 flaps. Below the minimum, the tier is not offered.
+   Easy 4, Medium 6, Hard 8, Expert 12 flaps. Below the minimum, the tier is not offered. Every
+   higher tier is also attempted, and the ladder offers only the tiers that fold; a tier the solver
+   cannot pack, or whose pattern does not lie flat, is shown as unavailable with its reason.
 4. The tree is passed to the TreeMaker port, which packs it into the square and builds the crease
    pattern. The mountain/valley assignment is computed by the solver, not by us.
 5. The pattern is returned as a printable SVG at a stated paper size, with a legend.
@@ -92,11 +95,13 @@ All figures below are from runs in this repository. Conditions are stated.
   fault is in our FOLD export or in how we drive the simulator. No paper model has been folded
   from a Fold pattern yet, so we do not claim one reads as the animal.
 - No cuts. A cut would break the single-square assumption the packing relies on.
-- Four to twelve flaps. Anything outside is refused.
+- Four to six flaps in practice. The tiers are defined up to twelve, but Hard (8) and Expert (12)
+  did not fold on any of the three fixtures (dog, turtle, tuatara); only Medium did. Anything the
+  solver cannot pack into a flat-foldable pattern is refused.
 - The photograph is uploaded to a server, processed in memory and discarded. It does not stay on
   the device.
 - The printed sheet has a legend and paper size. It does not yet state a step count or time
-  estimate, and the tier step and time figures in the spec are estimates not yet measured.
+  estimate, and the step and time figures shown for each tier are estimates, not measured.
 
 ## How to run
 

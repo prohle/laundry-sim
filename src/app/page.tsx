@@ -181,7 +181,7 @@ export default function Home() {
 
       <main className="screen">
         <p className="supported">
-          One to four photographs of the same object, from different angles. Four to twelve flaps, one square, no cuts.
+          One to four photographs of the same object, from different angles. Four to six flaps in practice, one square, no cuts. Only tiers that fold are offered.
         </p>
 
         {(view.kind === "empty" || view.kind === "staged") && (

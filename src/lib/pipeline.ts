@@ -28,8 +28,7 @@ import jpeg from "jpeg-js";
 import pngjs from "pngjs";
 import { extractTree, DEFAULT_SIGNIFICANCE_THRESHOLD } from "./skeleton.ts";
 import type { SkeletonTree, BranchRecord } from "./skeleton.ts";
-import { selectThreshold, SWEEP_THRESHOLDS } from "./select.ts";
-import type { Selection } from "./select.ts";
+import { selectThreshold, pickSweepTree, SWEEP_THRESHOLDS, type Selection } from "./select.ts";
 import { minimumTier, tierReport, treeForTier, TIERS } from "./tiers.ts";
 import type { MinimumTier, TierRow } from "./tiers.ts";
 import { contractShortEdges, DEFAULT_CONTRACT_THRESHOLD } from "./contract.ts";
@@ -540,6 +539,12 @@ export interface PipelineOptions {
    * and the pattern is re-solved. Ignored for an edited tree beyond the below-required refusal.
    */
   budget?: number;
+  /**
+   * The base run's selection (with its cached sweep trees). With `significance` set to its threshold and a
+   * `budget`, extraction is skipped: the tree at that threshold stands in for the significance-pruned tree
+   * and the budget's tree is picked from the cache (`pickSweepTree`). Used by the ladder.
+   */
+  reuse?: Selection;
 }
 
 /**
@@ -694,18 +699,32 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
           `${c.leaves} leaves, IoU ${c.iou.toFixed(4)}, value ${c.value.toFixed(4)}; swept ${sel.rows.length} thresholds`,
       );
     }
-    // "Before pruning": both prunings off. "After significance": no flap budget.
-    const unpruned = extractTree(frame, { significanceThreshold: 0, spurThreshold: 0 });
+    const reuse = opts.reuse && opts.budget !== undefined && opts.spur === undefined
+      ? opts.reuse.trees[opts.reuse.rows.findIndex((x) => x.threshold === significanceThreshold)] ?? null
+      : null;
     const diagnostics: BranchRecord[] = [];
-    sigOnly = extractTree(frame, { significanceThreshold, spurThreshold, diagnostics });
-    tree = extractTree(frame, { significanceThreshold, spurThreshold, maxLeaves });
-    if (opts.budget !== undefined) {
-      // The least-pruned tree the budget needs: the highest swept threshold that still leaves at least
-      // `budget` leaves, else the lowest threshold. Less noise than always taking the lowest.
-      for (const th of [...SWEEP_THRESHOLDS].reverse()) {
-        fullTree = extractTree(frame, { significanceThreshold: th, spurThreshold });
-        fullThreshold = th;
-        if (fullTree.leaves >= opts.budget) break;
+    let unpruned: SkeletonTree;
+    if (reuse) {
+      // Ladder: the sweep already extracted these. No extraction here.
+      unpruned = opts.reuse!.trees[0];
+      sigOnly = reuse;
+      tree = reuse;
+      const pick = pickSweepTree(opts.reuse!, opts.budget!);
+      fullTree = pick.tree;
+      fullThreshold = pick.threshold;
+    } else {
+      // "Before pruning": both prunings off. "After significance": no flap budget.
+      unpruned = extractTree(frame, { significanceThreshold: 0, spurThreshold: 0 });
+      sigOnly = extractTree(frame, { significanceThreshold, spurThreshold, diagnostics });
+      tree = extractTree(frame, { significanceThreshold, spurThreshold, maxLeaves });
+      if (opts.budget !== undefined) {
+        // The least-pruned tree the budget needs: the highest swept threshold that still leaves at least
+        // `budget` leaves, else the lowest threshold. Less noise than always taking the lowest.
+        for (const th of [...SWEEP_THRESHOLDS].reverse()) {
+          fullTree = extractTree(frame, { significanceThreshold: th, spurThreshold });
+          fullThreshold = th;
+          if (fullTree.leaves >= opts.budget) break;
+        }
       }
     }
     mark("skeleton");

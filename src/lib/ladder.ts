@@ -12,7 +12,7 @@
  */
 import { analyseImage, type Analysis } from "./segment.ts";
 import { TIERS, type TierName } from "./tiers.ts";
-import type { PipelineOptions, Refusal } from "./pipeline.ts";
+import { prepareImage, type PipelineOptions, type Refusal } from "./pipeline.ts";
 import type { SkeletonTree } from "./skeleton.ts";
 import { foldDistribution } from "../../tools/cp-to-svg.ts";
 
@@ -107,6 +107,8 @@ export function refusedTiers(refusal: Refusal): TierAttempt[] {
 
 export async function runLadder(bytes: Uint8Array, opts: PipelineOptions = {}): Promise<LadderRun> {
   const t0 = performance.now();
+  // Decode once: every tier runs on the same downscaled image.
+  opts = { ...opts, prepared: opts.prepared ?? prepareImage(bytes, opts.maxDim ?? 512) };
   const base = await analyseImage(bytes, { ...opts, budget: undefined });
   const min = base.minimum;
   const required = min?.requiredLeaves ?? null;
@@ -130,7 +132,7 @@ export async function runLadder(bytes: Uint8Array, opts: PipelineOptions = {}): 
       analyses.set(t.budget, base);
       tiers.push(attemptFrom(t, base, required));
     } else {
-      const a = await analyseImage(bytes, { ...opts, budget: t.budget, ...(sig !== undefined ? { significance: sig } : {}) });
+      const a = await analyseImage(bytes, { ...opts, budget: t.budget, ...(sig !== undefined ? { significance: sig } : {}), ...(sig !== undefined && base.selection ? { reuse: base.selection } : {}) });
       analyses.set(t.budget, a);
       tiers.push(a.fault !== null
         ? notRun(t, { stage: "solver", message: "The solver could not be run.", detail: a.fault }, required)
