@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "node --test src/lib/skeleton.test.ts"
   },
   "dependencies": {
     "@imgly/background-removal": "^1.7.0",

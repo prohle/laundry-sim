@@ -68,8 +68,19 @@ to "box-pleated animals".
 
 ## Phase 3 — Photo to tree (15–20 Nov)
 
-- [ ] 3.1 Silhouette → medial axis / skeleton
-- [ ] 3.2 Skeleton → tree with limb lengths, normalised to the square
+- [x] 3.1 Silhouette → medial axis / skeleton
+      - `src/lib/skeleton.ts`: Zhang-Suen thinning, graph extraction, spur pruning, flap-budget
+        reduction. Dependency-free, deterministic. 7 tests pass under `npm test`.
+      - Verified against realistic silhouettes: 4 distinct legs → 6 leaves; 3 legs (one hidden)
+        → 5; 4 legs with a 2 px gap → 6; 4 legs touching → 5; 2 legs → 4; disc with a
+        protruding bar → 2; mug with a handle (a hole) → 3, no throw.
+      - Known limit: a spike of 2 px or more leaves a spur of roughly spike + half the limb
+        width, so the default 5% threshold does not prune it. The caller must raise
+        `spurThreshold` for wide limbs.
+      - Performance: 18 ms at 180×140; 2.2 s at 1024×1024. Inside N1 but it needs watching.
+- [x] 3.2 Skeleton → tree with limb lengths, normalised to the square
+      - Coordinates normalised to [0,1] on the longer axis, aspect preserved. A `frame`
+        field maps back to pixels so the tree can be drawn over the photo (R2.2).
 - [ ] 3.3 Minimum-tier computation from the tree
 - [ ] 3.4 Human-in-the-loop correction: drag, lengthen, delete
 - [ ] 3.5 Refusal states: no limbs, too many limbs, packing fails
