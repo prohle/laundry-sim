@@ -30,8 +30,18 @@ Ordered. Each task leaves the repo runnable. Gates are kill criteria, not remind
         pattern; one failed with `invalid operation: polygon inset distance was not found`.
       - 0 to 7 ms per model.
       - No programmatic tree constructor; input is `.tmd5` text only.
-- [ ] 1.9 Tree-to-`.tmd5` serialiser: write a Fold tree as TreeMaker's `.tmd5` text so
+- [x] 1.9 Tree-to-`.tmd5` serialiser: write a Fold tree as TreeMaker's `.tmd5` text so
       `Tree::from_tmd_str` can read it
+      - `./solver` (`fold-solver`, GPL-2.0-or-later) reads a tree as JSON and emits v4 text,
+        which is re-parsed as canonical v5 before the optimiser runs.
+      - Bug found and fixed: the optimiser starts from the node coordinates, so they must lie
+        inside the paper. Coordinates are now normalised into [0.1, 0.9]; edge lengths are
+        unchanged. Without this, every tree outside the unit square failed with
+        `ALM returned result code 1`.
+      - Measured after the fix: chains of 3–10 nodes and stars of 3–10 nodes all converge, and
+        an 8-node four-legged animal converges at scale 0.1496. A chain of *n* unit edges gives
+        exactly 1/(n−1).
+      - Still open: no crease pattern has been diffed against a published reference (1.4).
 
 **Gate, 10 Nov:** parity on at least two of three. Fail → box-pleating only, and the claim narrows
 to "box-pleated animals".
