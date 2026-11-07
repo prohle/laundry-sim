@@ -139,7 +139,8 @@ test("treeForTier is connected and acyclic for every budget, with no degree-2 no
       for (const e of r.edges) {
         const a = r.nodes.find((x) => x.id === e.from)!;
         const b = r.nodes.find((x) => x.id === e.to)!;
-        assert.ok(Math.abs(e.length - Math.hypot(a.x - b.x, a.y - b.y)) < 1e-12);
+        // Path length (sum across splices) is never shorter than the chord between the endpoints.
+        assert.ok(e.length >= Math.hypot(a.x - b.x, a.y - b.y) - 1e-12, `edge ${e.from}-${e.to} shorter than its chord`);
       }
     }
   }
@@ -181,4 +182,43 @@ test("extractTree records a significance for every leaf", () => {
   assert.equal(Object.keys(t.leafSignificance).length, 4);
   for (const n of leaves) assert.ok(t.leafSignificance[n.id] > 2);
   assert.equal(minimumTier(t).tier, "easy");
+});
+
+test("splicing a degree-2 node sums the two edge lengths (path), not the chord", () => {
+  // Node 1 joins leaf 0 and hub 2 by two edges of 0.1, at a right angle: chord = 0.1414, path = 0.2.
+  // Node 1 also carries leaf 6, the least significant leaf; budget 4 drops it, leaving node 1 at degree 2.
+  const pts: [number, number][] = [
+    [0.1, 0.1], // 0 leaf
+    [0.1, 0.2], // 1 junction to be spliced
+    [0.2, 0.2], // 2 hub
+    [0.5, 0.2], // 3 leaf
+    [0.5, 0.5], // 4 leaf
+    [0.2, 0.6], // 5 leaf
+    [0.0, 0.3], // 6 leaf, dropped
+  ];
+  const nodes: TreeNode[] = pts.map(([x, y], id) => ({ id, x, y, degree: 0 }));
+  const edges: TreeEdge[] = [
+    { from: 0, to: 1, length: 0.1 },
+    { from: 1, to: 2, length: 0.1 },
+    { from: 1, to: 6, length: 0.1 },
+    { from: 2, to: 3, length: 0.3 },
+    { from: 2, to: 4, length: 0.4 },
+    { from: 2, to: 5, length: 0.4 },
+  ];
+  for (const e of edges) (nodes[e.from].degree++, nodes[e.to].degree++);
+  const tree: SkeletonTree = {
+    nodes,
+    edges,
+    leaves: 5,
+    frame: { originX: 0, originY: 0, scale: 1 },
+    leafSignificance: { 0: 5, 3: 6, 4: 7, 5: 8, 6: 1 },
+  };
+  const r = treeForTier(tree, 4);
+  assert.ok(!r.nodes.some((n) => n.id === 1), "node 1 was spliced out");
+  const e = r.edges.find((x) => x.from === 0 && x.to === 2);
+  assert.ok(e, "edge 0-2 exists");
+  assert.ok(Math.abs(e.length - 0.2) < 1e-12, `length ${e.length}, expected 0.2`);
+  assert.ok(Math.abs(e.length - Math.hypot(0.1, 0.1)) > 0.05, "not the chord");
+  // Unspliced edges keep their length.
+  assert.equal(r.edges.find((x) => x.from === 2 && x.to === 3)!.length, 0.3);
 });

@@ -83,23 +83,17 @@ export function rankLeaves(tree: SkeletonTree, significance: Record<number, numb
  *
  * Each dropped leaf's branch is removed back to the nearest junction that still leads to a kept
  * leaf. A junction left with two edges is removed and its edges joined into one whose length is
- * the straight-line distance between the new endpoints (the convention extractTree uses).
+ * the SUM of the two removed edge lengths (decision 2026-11-06): path length, not the chord.
  *
- * DESIGN NOTE, chord versus path (reviewed 2026-11-06, behaviour deliberately unchanged):
- * an edge length here is a CHORD, not the length along the limb. That is an approximation, and
- * for paper it is an UNDERESTIMATE: a flap consumes the length along the limb. It is the same
- * convention extractTree uses (skeleton.ts step 6), so splicing does not introduce it; it only
- * repeats it, and also cuts the corner at the spliced junction (chord <= sum of the two edges,
- * equal only when the two edges are collinear). The chord is always <= the path.
- *   - Cost of a bend: a limb bent through a circular arc of angle a has chord/path = sin(a/2)/(a/2):
- *     0.90 at 90 deg, 0.64 at 180 deg (a semicircle), 0.30 at 270 deg, 0 when it closes.
- *   - A curled tail is therefore the worst case: the tree gives it a short, stubby flap, the
- *     solver packs it as short, and the folded tail comes out shorter than the animal's.
- *   - Measured on fixtures/tuatara.jpg (curved tail): chord 162 px against 221 px of skeleton
- *     path (diagonals counted as sqrt 2), so the tail is 27% short. Straight limbs lose nothing.
- * Not changed because the tree is a stick figure and the user can lengthen an edge by hand
- * (R2.3, task 3.4). If it is changed, carry the pixel path length on each TreeEdge and SUM it
- * across a splice; extractTree already measures it (BranchRecord.length) and then discards it.
+ * DESIGN NOTE, path versus chord: a flap consumes the length along the limb, so a splice adds
+ * the lengths of the edges it removes. The straight-line distance between the surviving
+ * endpoints would cut the corner (chord <= path, equal only when collinear): a limb bent through
+ * an arc of angle a has chord/path = sin(a/2)/(a/2), 0.64 at a semicircle, 0 when it closes. On
+ * fixtures/tuatara.jpg the curled tail is 162 px by chord against 221 px by path, 27% short.
+ * Summing also keeps two tiny edges from collapsing to zero length.
+ * Limit: the edge lengths that extractTree produces are themselves chords between skeleton
+ * nodes (skeleton.ts step 6), so a bend INSIDE one extracted edge is still cut. Splicing no
+ * longer adds to that error; it does not remove it.
  * Surviving nodes keep their ids and coordinates, so tiers can be compared by id. A tree with
  * `budget` or fewer leaves is returned unchanged (as a copy).
  */
@@ -111,11 +105,12 @@ export function treeForTier(tree: SkeletonTree, budget: number): SkeletonTree {
   const keep = new Set(ranked.slice(0, budget));
 
   const pos = new Map<number, TreeNode>(tree.nodes.map((n) => [n.id, n]));
-  const adj = new Map<number, Set<number>>();
-  for (const n of tree.nodes) adj.set(n.id, new Set());
+  // neighbour -> edge length, so a splice can sum lengths.
+  const adj = new Map<number, Map<number, number>>();
+  for (const n of tree.nodes) adj.set(n.id, new Map());
   for (const e of tree.edges) {
-    adj.get(e.from)!.add(e.to);
-    adj.get(e.to)!.add(e.from);
+    adj.get(e.from)!.set(e.to, e.length);
+    adj.get(e.to)!.set(e.from, e.length);
   }
 
   // Strip branches that lead only to dropped leaves.
@@ -123,7 +118,7 @@ export function treeForTier(tree: SkeletonTree, budget: number): SkeletonTree {
     const queue = ranked.filter((id) => !keep.has(id)).sort((a, b) => a - b);
     while (queue.length) {
       const id = queue.shift()!;
-      for (const nb of adj.get(id)!) {
+      for (const nb of adj.get(id)!.keys()) {
         adj.get(nb)!.delete(id);
         if (adj.get(nb)!.size === 1 && !keep.has(nb)) queue.push(nb);
       }
@@ -137,11 +132,12 @@ export function treeForTier(tree: SkeletonTree, budget: number): SkeletonTree {
     for (const id of [...adj.keys()].sort((a, b) => a - b)) {
       const nbs = adj.get(id)!;
       if (nbs.size !== 2) continue;
-      const [a, b] = [...nbs];
+      const [[a, la], [b, lb]] = [...nbs];
       adj.get(a)!.delete(id);
       adj.get(b)!.delete(id);
-      adj.get(a)!.add(b);
-      adj.get(b)!.add(a);
+      // Path length: the spliced edge is the sum of the two removed edges.
+      adj.get(a)!.set(b, la + lb);
+      adj.get(b)!.set(a, la + lb);
       adj.delete(id);
       changed = true;
       break;
@@ -151,12 +147,8 @@ export function treeForTier(tree: SkeletonTree, budget: number): SkeletonTree {
   const ids = [...adj.keys()].sort((a, b) => a - b);
   const edges: TreeEdge[] = [];
   for (const a of ids) {
-    for (const b of adj.get(a)!) {
-      if (a < b) {
-        const pa = pos.get(a)!;
-        const pb = pos.get(b)!;
-        edges.push({ from: a, to: b, length: Math.hypot(pb.x - pa.x, pb.y - pa.y) });
-      }
+    for (const [b, length] of adj.get(a)!) {
+      if (a < b) edges.push({ from: a, to: b, length });
     }
   }
   edges.sort((p, q) => p.from - q.from || p.to - q.to);

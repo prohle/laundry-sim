@@ -83,6 +83,18 @@ to "box-pleated animals".
 - [ ] 2.4 Kawasaki and Maekawa checks at every interior vertex
 - [ ] 2.5 Flat-folded state enumeration; report the count
 - [ ] 2.6 Mountain/valley assignment where the count is one; collapse direction otherwise
+- [x] 2.7 Property-based tests, and the three defects they found
+      - fast-check, 2,406 cases across nine properties, run inside `npm test` (61 tests total).
+      - Defect 1: a tree with subnormal coordinates (~5e-323) makes `treemaker-core`'s
+        `from_tmd_str` hang for over 300 s. The serialiser now rejects non-finite coordinates,
+        values below 1e-9 or above 1e6, and node pairs closer than 1e-9.
+      - Defect 2: the solver spawn had no timeout, so a pathological tree hung the request. It
+        now times out at 10 s and returns a refusal.
+      - Defect 3: splicing used the chord, which collapsed two coincident nodes to a zero-length
+        edge. Splicing now sums the two edge lengths (path length), which is the paper a flap
+        consumes and also corrects the 27% underestimate on a curled limb.
+      - The dog is unchanged by all three: scale 0.734019, 6 leaves, 35/35 interior vertices
+        flat-foldable. Straight limbs lose nothing from the chord-to-path change.
 
 **Gate, 15 Nov:** one pattern passes local flat-foldability and prints with a legend.
 

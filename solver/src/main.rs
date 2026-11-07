@@ -143,6 +143,34 @@ fn normalise_coords(nodes: &[NodeIn]) -> Vec<(f64, f64)> {
         .collect()
 }
 
+/// Smallest nonzero |coordinate| and largest |coordinate| accepted.
+const COORD_MIN_NONZERO: f64 = 1e-9;
+const COORD_MAX: f64 = 1e6;
+/** Closest two nodes may be, in input units. */
+const MIN_NODE_SEPARATION: f64 = 1e-9;
+
+/// Refuse coordinates no photograph can produce.
+///
+/// treemaker-core's `from_tmd_str` does not return in over 300 s on a tree with
+/// subnormal coordinates (~5e-323). We cannot fix the crate, so we refuse to feed
+/// it such values. Exact zero is allowed: a pixel on the frame edge normalises to 0
+/// and the coordinates are re-fitted into [0.1, 0.9] before they reach the crate.
+fn check_coord(id: i64, axis: &str, v: f64) -> Result<(), String> {
+    if !v.is_finite() {
+        return Err(format!("node {id} has a non-finite {axis} coordinate ({v})"));
+    }
+    let a = v.abs();
+    if a != 0.0 && a < COORD_MIN_NONZERO {
+        return Err(format!(
+            "node {id} {axis} coordinate {v:e} is nonzero but smaller than {COORD_MIN_NONZERO:e} in magnitude"
+        ));
+    }
+    if a > COORD_MAX {
+        return Err(format!("node {id} {axis} coordinate {v:e} is larger than {COORD_MAX:e} in magnitude"));
+    }
+    Ok(())
+}
+
 /// Serialise a Fold tree to TreeMaker text.
 ///
 /// treemaker-core has no tree constructor and its v5 reader does not rebuild
@@ -164,11 +192,23 @@ pub fn tree_to_tmd(tree: &TreeIn) -> Result<String, String> {
     }
     let mut index_of: BTreeMap<i64, usize> = BTreeMap::new();
     for (i, node) in tree.nodes.iter().enumerate() {
-        if !node.x.is_finite() || !node.y.is_finite() {
-            return Err(format!("node {} has a non-finite coordinate", node.id));
-        }
+        check_coord(node.id, "x", node.x)?;
+        check_coord(node.id, "y", node.y)?;
         if index_of.insert(node.id, i + 1).is_some() {
             return Err(format!("duplicate node id {}", node.id));
+        }
+    }
+    // treemaker-core's parser does not return on near-coincident nodes. A photograph
+    // cannot produce them, so refuse rather than hang.
+    for (i, p) in tree.nodes.iter().enumerate() {
+        for q in &tree.nodes[i + 1..] {
+            let d = (p.x - q.x).hypot(p.y - q.y);
+            if d < MIN_NODE_SEPARATION {
+                return Err(format!(
+                    "nodes {} and {} are {d:e} apart, closer than {MIN_NODE_SEPARATION:e}",
+                    p.id, q.id
+                ));
+            }
         }
     }
     // The optimiser starts from the node coordinates, which must lie inside
@@ -401,9 +441,41 @@ fn solve_parsed(mut t: Tree) -> Report {
     report
 }
 
+/// Property-test entry (spec change, 2026-11-06): serialise the tree, parse it, re-emit canonical
+/// v5, parse that, and report what the parser holds: node count, leaf count, edge lengths in
+/// edge order. No optimisation. Lets tests/properties.test.ts observe the serialiser round trip.
+pub fn roundtrip(tree: &TreeIn) -> serde_json::Value {
+    let run = || -> Result<Tree, String> {
+        let tmd = tree_to_tmd(tree).map_err(|e| format!("serialise: {e}"))?;
+        let v5 = Tree::from_tmd_str(&tmd).map_err(|e| format!("parse: {e}"))?.to_tmd5_string();
+        Tree::from_tmd_str(&v5).map_err(|e| format!("parse v5: {e}"))
+    };
+    match run() {
+        Ok(t) => serde_json::json!({
+            "ok": true,
+            "nodes": t.nodes.len(),
+            "leaf_nodes": t.nodes.iter().filter(|n| n.is_leaf).count(),
+            "edge_lengths": t.edges.iter().map(|e| e.length).collect::<Vec<_>>(),
+        }),
+        Err(e) => serde_json::json!({ "ok": false, "error": e }),
+    }
+}
+
 fn main() {
     // `fold-solver --tmd5 <file>`: solve a TreeMaker model directly (control experiment).
     let args: Vec<String> = std::env::args().collect();
+    if args.get(1).map(String::as_str) == Some("--roundtrip") {
+        let mut input = String::new();
+        let out = match std::io::stdin().read_to_string(&mut input) {
+            Err(e) => serde_json::json!({ "ok": false, "error": format!("stdin: {e}") }),
+            Ok(_) => match serde_json::from_str::<TreeIn>(&input) {
+                Err(e) => serde_json::json!({ "ok": false, "error": format!("json: {e}") }),
+                Ok(t) => roundtrip(&t),
+            },
+        };
+        println!("{out}");
+        std::process::exit(if out["ok"] == true { 0 } else { 1 });
+    }
     if args.get(1).map(String::as_str) == Some("--tmd5") {
         let report = match args.get(2).map(std::fs::read_to_string) {
             None => Report { ok: false, converged: false, feasible: false, scale: 0.0, error: Some("usage: fold-solver --tmd5 <file>".into()), cp_status: None, cp_built: false, facet_colors: None, cp: None },
@@ -437,6 +509,27 @@ mod tests {
                          {"from":0,"to":3,"length":1.0}]}"#,
         )
         .unwrap()
+    }
+
+    #[test]
+    fn near_coincident_nodes_are_rejected_with_ids_and_distance() {
+        let tree: TreeIn = serde_json::from_str(
+            r#"{"nodes":[{"id":7,"x":0.5,"y":0.5},{"id":9,"x":0.5,"y":0.5000000000001},
+                         {"id":3,"x":0.1,"y":0.1}],
+                "edges":[{"from":7,"to":9,"length":0.5},{"from":7,"to":3,"length":0.5}]}"#,
+        )
+        .unwrap();
+        let err = tree_to_tmd(&tree).unwrap_err();
+        assert!(err.contains("nodes 7 and 9"), "{err}");
+        assert!(err.contains("e-13"), "distance reported: {err}");
+        // Just over 1e-9 apart is accepted (the check is strict).
+        let ok: TreeIn = serde_json::from_str(
+            r#"{"nodes":[{"id":0,"x":0.5,"y":0.5},{"id":1,"x":0.500000002,"y":0.5},
+                         {"id":2,"x":0.1,"y":0.1}],
+                "edges":[{"from":0,"to":1,"length":0.5},{"from":0,"to":2,"length":0.5}]}"#,
+        )
+        .unwrap();
+        assert!(tree_to_tmd(&ok).is_ok());
     }
 
     #[test]
@@ -575,6 +668,52 @@ mod tests {
         let tmd = tree_to_tmd(&tree).unwrap();
         let parsed = Tree::from_tmd_str(&tmd).unwrap();
         assert!(parsed.to_tmd5_string().contains(&format!("{:.6}", before[0])));
+    }
+
+    fn star_with_x(x: f64) -> TreeIn {
+        let mut t = star();
+        t.nodes[1].x = x;
+        t
+    }
+
+    #[test]
+    fn rejects_non_finite_coordinate() {
+        for v in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let e = tree_to_tmd(&star_with_x(v)).unwrap_err();
+            assert!(e.contains("node 1") && e.contains("non-finite"), "{e}");
+        }
+    }
+
+    #[test]
+    fn rejects_tiny_nonzero_coordinate() {
+        for v in [5e-323, 1e-10, -1e-10] {
+            let e = tree_to_tmd(&star_with_x(v)).unwrap_err();
+            assert!(e.contains("node 1") && e.contains(&format!("{v:e}")), "{e}");
+        }
+    }
+
+    #[test]
+    fn rejects_huge_coordinate() {
+        for v in [1.0000001e6, -2e6, 1e300] {
+            let e = tree_to_tmd(&star_with_x(v)).unwrap_err();
+            assert!(e.contains("node 1") && e.contains("larger than"), "{e}");
+        }
+    }
+
+    #[test]
+    fn accepts_zero_and_boundary_coordinates() {
+        for v in [0.0, 1e-9, -1e-9, 1e6, -1e6] {
+            assert!(tree_to_tmd(&star_with_x(v)).is_ok(), "{v}");
+        }
+    }
+
+    #[test]
+    fn normal_tree_still_round_trips() {
+        let out = roundtrip(&star());
+        assert_eq!(out["ok"], true, "{out}");
+        assert_eq!(out["nodes"], 4);
+        assert_eq!(out["leaf_nodes"], 3);
+        assert_eq!(out["edge_lengths"], serde_json::json!([1.0, 1.0, 1.0]));
     }
 
     #[test]

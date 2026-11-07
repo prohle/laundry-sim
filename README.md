@@ -66,7 +66,9 @@ All figures below are from runs in this repository. Conditions are stated.
 - The significance measure fails on stubby legs (a large body with short legs scores each leg too
   low) and on split toes (each toe scores high). No single threshold fits both. The default of 2.0
   was calibrated on the dog.
-- A curled limb is measured by its chord, not its path. The tuatara tail is 27% short.
+- A curled limb is measured by its path where the tree is spliced, but each extracted edge is
+  still a chord between skeleton nodes, so a bend inside one edge is cut. The tuatara tail was
+  27% short when measured by chord alone (162 px against 221 px of path).
 - The beetle is refused: the tree has 8 leaves, which the tier rule calls Hard, and the solver
   returns a pattern with no mountain/valley assignment. The design says a beetle needs ten flaps;
   the antennae are lost at the mask, so the minimum tier shown for it is too low.

@@ -319,7 +319,7 @@ function runSolver(
   solverPath: string,
   tree: SkeletonTree,
   timeoutMs: number,
-): Promise<{ report: SolverReport; json: string } | { fault: string }> {
+): Promise<{ report: SolverReport; json: string } | { fault: string } | { timeout: string }> {
   const json = JSON.stringify({
     nodes: tree.nodes.map((n) => ({ id: n.id, x: n.x, y: n.y })),
     edges: tree.edges.map((e) => ({ from: e.from, to: e.to, length: e.length })),
@@ -329,7 +329,7 @@ function runSolver(
     let out = "";
     let err = "";
     let settled = false;
-    const finish = (v: { report: SolverReport; json: string } | { fault: string }) => {
+    const finish = (v: { report: SolverReport; json: string } | { fault: string } | { timeout: string }) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
@@ -337,7 +337,7 @@ function runSolver(
     };
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
-      finish({ fault: `could not run ${solverPath}: timed out after ${timeoutMs} ms` });
+      finish({ timeout: `${solverPath} did not finish within ${timeoutMs} ms and was killed (SIGKILL)` });
     }, timeoutMs);
     child.stdout.setEncoding("utf8").on("data", (c: string) => (out += c));
     child.stderr.setEncoding("utf8").on("data", (c: string) => (err += c));
@@ -381,6 +381,9 @@ function plainNoPattern(status: string | null, failed: boolean): string {
   return `This shape could not be turned into a complete crease pattern. ${SEPARATE_LIMBS}`;
 }
 
+
+/** Default wall-clock limit for one solver run. */
+export const DEFAULT_SOLVER_TIMEOUT_MS = 10_000;
 
 export const DEFAULT_SOLVER_RELATIVE = "solver/target/release/fold-solver";
 
@@ -597,7 +600,7 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
   }
 
   // 4 + 5. Solver. When contraction changed the tree, the original is run first for comparison.
-  const timeoutMs = opts.solverTimeoutMs ?? 60_000;
+  const timeoutMs = opts.solverTimeoutMs ?? DEFAULT_SOLVER_TIMEOUT_MS;
   const changed = !!treeContraction && (treeContraction.contracted.length > 0 || treeContraction.dropped.length > 0);
   if (changed) {
     const before = await runSolver(solverPath, tree, timeoutMs);
@@ -610,6 +613,14 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
   }
   const ran = await runSolver(solverPath, solverTree, timeoutMs);
   mark("solver");
+  if ("timeout" in ran) {
+    return refuse(
+      "solver",
+      "The solver did not finish in time. Try a simpler subject.",
+      `REFUSED    The solver did not finish in time: ${ran.timeout}`,
+      ran.timeout,
+    );
+  }
   if ("fault" in ran) {
     r.fault = ran.fault;
     say(`solver     ${ran.fault}`);
