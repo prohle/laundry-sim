@@ -227,6 +227,28 @@ export function assessMask(mask: Uint8Array, w: number, h: number): MaskAssessme
   };
 }
 
+export interface BorderContact {
+  /** Foreground pixels on the outermost row or column of the frame. */
+  pixels: number;
+  /** Those pixels / the frame's border pixels (2w + 2h - 4). */
+  share: number;
+  /** Sides touched, any of "left" | "right" | "top" | "bottom". */
+  sides: string[];
+}
+
+/** How much of a mask (1 = foreground) lies on the frame border. Pure. */
+export function borderContact(mask: Uint8Array, w: number, h: number): BorderContact {
+  let pixels = 0;
+  const sides: string[] = [];
+  const count = (name: string, n: number) => { if (n > 0) { pixels += n; sides.push(name); } };
+  let l = 0, r = 0, t = 0, b = 0;
+  for (let y = 0; y < h; y++) { l += mask[y * w]; r += mask[y * w + w - 1]; }
+  for (let x = 0; x < w; x++) { t += mask[x]; b += mask[(h - 1) * w + x]; }
+  count("left", l); count("right", r); count("top", t); count("bottom", b);
+  // Corner pixels are counted by two sides; the share is a measure, not an exact area.
+  return { pixels, share: pixels / Math.max(1, 2 * w + 2 * h - 4), sides };
+}
+
 export interface MaskResult {
   mask: Uint8Array;
   width: number;

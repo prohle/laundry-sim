@@ -267,6 +267,16 @@ to "box-pleated animals".
         chosen. Warning fired.
       - Not done: the UI does not offer multiple photographs; `next build` not run; one subject only.
 
+- [x] 3.16 Reject a view whose object runs out of frame (`outOfFrame`, `borderContact`)
+      (spec change, added 2026-11-06, user request; refines R1.3, R1.4)
+      - In `analyseViews`, a view whose largest silhouette component has any pixel on the frame border is
+        refused at stage `frame` before analysis: "The object runs out of frame in this view. Fit the whole
+        object in the photograph." `detail` carries the pixel count, share of the border, sides and frame
+        size. The view stays in the per-view report with `refusal`; the disagreement text says it was set aside.
+      - Observed: the 0.6 turtle crop touches the left side with 234 px (12.7% of the border) and is refused
+        instead of reporting 4 flaps. Full turtle, dog and tuatara: 0 border pixels each. Threshold is "any".
+      - Not done: a single photograph through `analyseImage` is not checked; the UI does not offer views.
+
 **Gate, 20 Nov:** three subjects produce trees that a human accepts after at most two corrections.
 
 ## Phase 4 — Fold it (20–25 Nov)
@@ -316,6 +326,15 @@ to "box-pleated animals".
         the dog's coverage. Nothing tuned. Physical fold on hold until this is understood.
       - Kawasaki default tolerance is now 2e-5 rad (`src/lib/flatfold.ts`); the largest residual is
         still reported.
+- [x] 5.3a FoldView playback outside React state (`src/app/FoldView.tsx`)
+      (spec change, added 2026-11-06, user request)
+      - The rAF loop advances `t` in a ref, writes vertex positions and renders directly; `t` in state is
+        synced about every 100 ms for the slider label and facts line. Orbit only redraws.
+      - Observed in headless Chromium (software GL, so not a GPU figure), dog fixture, one full play-through:
+        481 frames in 8.19 s (58.7 fps, median 16.7 ms); `t` written 481 times, value 1 exactly once, never
+        decreasing; label updated 78 times (about 9.5/s). Orbit drag mid-play: 20 extra redraws, `t` kept
+        advancing (0.249 -> 0.293). Orbit while paused: 10 redraws, `t` unchanged at 1. No console errors.
+      - Not measured: React render count before the change, GPU frame rate, touch orbit.
 - [~] 5.0 Product screen `src/app/page.tsx`: empty, processing, result, refusal (and a fault state)
       - Spec change, 2026-11-06 (user request): replaces the relief UI. Deleted `Relief3D.tsx`,
         `src/lib/crease.ts`, `src/lib/db.ts`, `src/app/api/plans/route.ts`; removed dependencies

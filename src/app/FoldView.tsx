@@ -21,8 +21,15 @@ export default function FoldView({ cp, paperMm }: { cp: CollapseCp | null | unde
   const [playing, setPlaying] = useState(false);
 
   const mountRef = useRef<HTMLDivElement>(null);
-  const meshRef = useRef<THREE.Mesh | null>(null);
   const renderRef = useRef<(() => void) | null>(null);
+  // Playback lives in refs: the animation loop writes vertices and renders without going through React.
+  // `t` in state is only a copy for the slider and the labels, synced ~10 times a second while playing.
+  const tRef = useRef(0);
+  const modeRef = useRef<CollapseMode>("together");
+  const playingRef = useRef(false);
+  const applyRef = useRef<((t: number) => void) | null>(null);
+  const appliedRef = useRef("");
+  const seek = (x: number) => { tRef.current = x; setT(x); };
 
   // Scene: built once per model.
   useEffect(() => {
@@ -60,7 +67,6 @@ export default function FoldView({ cp, paperMm }: { cp: CollapseCp | null | unde
     const mesh = new THREE.Mesh(geometry, front);
     const mesh2 = new THREE.Mesh(geometry, back);
     scene.add(mesh, mesh2);
-    meshRef.current = mesh;
 
     const resize = () => {
       const w = host.clientWidth || 1, h = host.clientHeight || 1;
@@ -74,8 +80,22 @@ export default function FoldView({ cp, paperMm }: { cp: CollapseCp | null | unde
 
     function draw() { renderer.render(scene, camera); }
     renderRef.current = draw;
+    // Camera changes only redraw; they never touch t, the mode or playback.
     controls.addEventListener("change", draw);
-    draw();
+
+    // Write the frame for (mode, t) into the vertex buffer and render. Called by the loop and by seeks.
+    const pos = geometry.getAttribute("position") as THREE.BufferAttribute;
+    const apply = (tt: number) => {
+      const frame = collapseFrame(model, modeRef.current, tt);
+      (pos.array as Float32Array).set(frame.positions);
+      pos.needsUpdate = true;
+      geometry.computeVertexNormals();
+      appliedRef.current = `${modeRef.current}:${tt}`;
+      host.dataset.foldT = String(tt);
+      draw();
+    };
+    applyRef.current = apply;
+    apply(tRef.current);
 
     return () => {
       ro.disconnect();
@@ -85,45 +105,50 @@ export default function FoldView({ cp, paperMm }: { cp: CollapseCp | null | unde
       back.dispose();
       renderer.dispose();
       renderer.domElement.remove();
-      meshRef.current = null;
       renderRef.current = null;
+      applyRef.current = null;
+      appliedRef.current = "";
     };
   }, [model, paperMm]);
 
-  // Frame: a pure function of (model, mode, t).
+  // The facts line is measured from the state copy of t, so while playing it updates ~10 times a second.
   const measure = useMemo(() => {
     if (!model) return null;
-    const frame = collapseFrame(model, mode, t);
-    return { frame, m: measureFrame(model, frame) };
+    return measureFrame(model, collapseFrame(model, mode, t));
   }, [model, mode, t]);
-  useEffect(() => {
-    const mesh = meshRef.current;
-    if (!mesh || !measure) return;
-    const pos = mesh.geometry.getAttribute("position") as THREE.BufferAttribute;
-    (pos.array as Float32Array).set(measure.frame.positions);
-    pos.needsUpdate = true;
-    mesh.geometry.computeVertexNormals();
-    renderRef.current?.();
-  }, [measure]);
 
-  // Play: advance t from where it is; stop at 1.
+  // Play: the loop owns t while it runs. It stops at 1 and applies 1 once.
   useEffect(() => {
     if (!playing) return;
-    let raf = 0, last = performance.now();
+    playingRef.current = true;
+    let raf = 0, last = performance.now(), lastSync = last;
     const tick = (now: number) => {
       const dt = (now - last) / 1000;
       last = now;
-      let done = false;
-      setT((prev) => {
-        const next = Math.min(1, prev + dt / PLAY_SECONDS);
-        if (next >= 1) done = true;
-        return next;
-      });
-      if (done) setPlaying(false); else raf = requestAnimationFrame(tick);
+      const next = Math.min(1, tRef.current + dt / PLAY_SECONDS);
+      tRef.current = next;
+      applyRef.current?.(next);
+      if (next >= 1) {
+        playingRef.current = false;
+        setT(1);
+        setPlaying(false);
+        return;
+      }
+      if (now - lastSync >= 100) { lastSync = now; setT(next); }
+      raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return () => { cancelAnimationFrame(raf); playingRef.current = false; };
   }, [playing]);
+
+  // Seeks, step buttons and mode changes while not playing. Skips a frame that is already on screen.
+  useEffect(() => {
+    modeRef.current = mode;
+    if (playingRef.current) return;
+    if (appliedRef.current === `${mode}:${t}`) return;
+    tRef.current = t;
+    applyRef.current?.(t);
+  }, [mode, t]);
 
   if (!model) {
     return (
@@ -143,10 +168,10 @@ export default function FoldView({ cp, paperMm }: { cp: CollapseCp | null | unde
   const goStep = (k: number) => {
     setPlaying(false);
     setMode("sequence");
-    setT(Math.min(1, Math.max(0, k / n)));
+    seek(Math.min(1, Math.max(0, k / n)));
   };
   const current = mode === "sequence" ? Math.round(t * n * 1e6) / 1e6 : null;
-  const m = measure!.m;
+  const m = measure!;
   const closes = m.maxVertexSplitMm < 0.01;
 
   return (
@@ -155,7 +180,11 @@ export default function FoldView({ cp, paperMm }: { cp: CollapseCp | null | unde
       <div ref={mountRef} className="fold-view__canvas" data-testid="fold-canvas" />
 
       <div className="fold-view__controls">
-        <button type="button" className="upload-label" onClick={() => { if (t >= 1) setT(0); setPlaying((p) => !p); }}>
+        <button type="button" className="upload-label" onClick={() => {
+          if (playing) { setT(tRef.current); setPlaying(false); return; }
+          if (tRef.current >= 1) seek(0);
+          setPlaying(true);
+        }}>
           {playing ? "Pause" : t >= 1 ? "Replay" : "Play"}
         </button>
         <button type="button" className="upload-label" disabled={n === 0 || (current !== null && current <= 0) || (current === null && t <= 0)}
@@ -171,7 +200,7 @@ export default function FoldView({ cp, paperMm }: { cp: CollapseCp | null | unde
           <input
             type="range" min={0} max={1000} value={Math.round(t * 1000)}
             aria-label="Collapse progress"
-            onChange={(e) => { setPlaying(false); setT(Number(e.target.value) / 1000); }}
+            onChange={(e) => { setPlaying(false); seek(Number(e.target.value) / 1000); }}
           />
         </label>
       </div>

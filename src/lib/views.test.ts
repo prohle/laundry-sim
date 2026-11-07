@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import jpeg from "jpeg-js";
 import pngjs from "pngjs";
-import { analyseViews, disagreementMessage } from "./views.ts";
+import { analyseViews, disagreementMessage, outOfFrame } from "./views.ts";
 
 const { PNG } = pngjs;
 
@@ -33,8 +33,20 @@ test("turtle cropped to lose the rear leg, paired with the full image", async ()
   const a = await analyseViews([cropBytes, readFileSync("fixtures/snapping-turtle.jpg")]);
   console.log(JSON.stringify(a.views), "\nDISAGREEMENT:", a.disagreement);
   assert.equal(a.views.length, 2);
-  assert.ok(a.views[1].leaves! > (a.views[0].leaves ?? 0), "crop finds fewer leaves");
+  // The crop touches the frame border, so it is refused as incomplete, not counted.
+  assert.equal(a.views[0].leaves, null);
+  assert.equal(a.views[0].folds, false);
+  assert.equal(a.views[0].refusal?.stage, "frame");
+  assert.equal(a.views[0].refusal?.message, "The object runs out of frame in this view. Fit the whole object in the photograph.");
+  assert.match(a.views[0].refusal!.detail!, /pixels on the frame border/);
+  assert.equal(a.views[1].refusal, null);
+  assert.ok(a.views[1].leaves! > 0);
   assert.equal(a.views.filter((v) => v.chosen).length, 1);
-  assert.match(a.disagreement!, new RegExp(`${a.views[0].leaves} flaps`));
+  assert.equal(a.views[1].chosen, true);
+  assert.match(a.disagreement!, /view 1 was set aside because the object runs out of frame/);
   assert.match(a.disagreement!, new RegExp(`${a.views[1].leaves} flaps`));
+});
+
+test("full fixtures do not touch the frame border", () => {
+  for (const f of ["snapping-turtle.jpg", "bush-dog.png", "tuatara.jpg"]) assert.equal(outOfFrame(readFileSync(`fixtures/${f}`)), null, f);
 });
