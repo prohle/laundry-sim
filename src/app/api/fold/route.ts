@@ -195,7 +195,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         cpBuilt: solver.cp_built,
       },
       // Only a printable pattern leaves the server. A pattern with no mountain/valley is withheld.
-      pattern: result.ok
+      pattern: result.ok && !result.multiSheet && solver
         ? {
             cp: solver!.cp,
             fold: result.fold,
@@ -203,6 +203,21 @@ export async function POST(request: NextRequest): Promise<Response> {
             flatFold: result.flatFold,
             // Printable sheet at the stated paper size, for inline display and download.
             svg: result.svg,
+          }
+        : null,
+      // Multi-sheet model (tasks 3.21-3.23): null for a single-sheet subject. `parts` are largest first, each with its
+      // own tier, fold verdict, cpStatus, counts, refusal and (only when it folds) pattern; `assembly.note` names the
+      // junction and states that the parts are joined at a tab with glue or a slot. `ok` is true only if every part folds.
+      multiSheet: result.multiSheet
+        ? {
+            ok: result.multiSheet.ok,
+            assembly: result.multiSheet.assembly,
+            totalLeaves: result.multiSheet.partition.totalLeaves,
+            parts: result.multiSheet.parts.map((p) => ({
+              name: p.name, leaves: p.leaves, flaps: p.flaps, tabs: p.tabs, tier: p.tier, folds: p.folds, cpStatus: p.cpStatus,
+              vertices: p.vertices, creases: p.creases, foldCodes: p.foldCodes, refusal: p.refusal, tree: p.tree,
+              pattern: p.pattern && { cp: p.pattern.cp, fold: p.pattern.fold, foldValid: p.pattern.foldValid, flatFold: p.pattern.flatFold, svg: p.pattern.svg },
+            })),
           }
         : null,
       // Every object found (task 3.11), best first; the top-level fields above describe candidates[0].

@@ -118,6 +118,16 @@ export async function runLadder(bytes: Uint8Array, opts: PipelineOptions = {}): 
   // when the image has one candidate on the primary path: with several, each has its own threshold.
   const sig = opts.significance ?? (base.candidates.length <= 1 && base.segmentation.path === "primary" ? base.selection?.threshold : undefined);
 
+  if (base.multiSheet) {
+    // Multi-sheet (R8): each part has its own minimum tier, so there is no single ladder for the subject.
+    const why: Refusal = {
+      stage: "tier",
+      message: `This subject is folded as ${base.multiSheet.parts.length} parts, each from its own square; the tier is set per part.`,
+      detail: `${required} flaps exceed the largest budget; see multiSheet.parts`,
+    };
+    return { base, top: base, tiers: TIERS.map((t) => notRun(t, why, required)), ms: performance.now() - t0 };
+  }
+
   const analyses = new Map<number, Analysis>();
   const tiers: TierAttempt[] = [];
   for (const t of TIERS) {

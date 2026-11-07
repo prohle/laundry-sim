@@ -39,6 +39,8 @@ import { cpToSvg, foldDistribution } from "../../tools/cp-to-svg.ts";
 import type { Cp } from "../../tools/cp-to-svg.ts";
 import { cpToFold, validateFold } from "../../tools/fold.ts";
 import type { FoldFile, FoldValidation } from "../../tools/fold.ts";
+import { solveParts } from "./multisheet.ts";
+import type { MultiSheet } from "./multisheet.ts";
 
 const { PNG } = pngjs;
 
@@ -580,6 +582,13 @@ export interface PipelineResult {
   solver: SolverReport | null;
   /** The JSON given to the solver on stdin. */
   solverInput: string | null;
+  /**
+   * Multi-sheet model (task 3.21-3.23): present only when the subject needs more than 12 flaps and was
+   * split into parts. Null for every single-sheet subject. When present, `tree` is the whole subject's
+   * tree, `ok` is true only if every part folds, and the pattern fields (`svg`, `fold`, `solver`...) are
+   * null: each part carries its own pattern.
+   */
+  multiSheet: MultiSheet | null;
   assigned: boolean;
   fold: FoldFile | null;
   foldCheck: FoldValidation | null;
@@ -605,7 +614,7 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
   const solverPath = opts.solverPath ?? resolveSolverPath();
   const r: PipelineResult = {
     ok: false, refusal: null, fault: null, log: [], image: null, coverage: null, tree: null,
-    contraction: null, selection: null, minimum: null, tiers: null, budget: null, solver: null, solverInput: null, assigned: false,
+    contraction: null, selection: null, minimum: null, tiers: null, budget: null, solver: null, solverInput: null, multiSheet: null, assigned: false,
     fold: null, foldCheck: null, foldFacesOmitted: null, flatFold: null, svg: null,
     images: { mask: null, overlay: null }, timingsMs: lap, totalMs: 0,
   };
@@ -808,13 +817,38 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
     say(`           ${t.tier.padEnd(8)} ${String(t.budget).padStart(6)}  ${String(t.leaves).padStart(6)}  ${String(t.dropped).padStart(7)}  ${t.representable}`);
   }
   if (min.tier === null) {
-    return refuse(
-      "tier",
-      `This subject has ${min.requiredLeaves} limbs, and this tool folds at most twelve from one square. ` +
-        "Try a simpler subject, or a photograph from an angle that hides some of the limbs.",
-      `REFUSED    ${min.reason}`,
-      min.reason,
-    );
+    // More flaps than one square allows: split into parts, each folded from its own square (R8).
+    if (opts.budget !== undefined) {
+      const msg = `This subject needs ${min.requiredLeaves} flaps and is folded as several parts; a single tier cannot be chosen for it.`;
+      return refuse("tier", msg, `REFUSED    ${msg}`, min.reason);
+    }
+    r.tree = sigC;
+    const ms = await solveParts(sigC, {
+      solve: (t) => runSolver(solverPath, t, opts.solverTimeoutMs ?? DEFAULT_SOLVER_TIMEOUT_MS),
+      paper: opts.paper ?? 150,
+      name: opts.name ?? "upload",
+      image: { width: img.width, height: img.height },
+    });
+    mark("solver");
+    r.multiSheet = ms;
+    r.budget = { requested: null, used: null, leaves: sigC.leaves };
+    say(`multisheet ${sigC.leaves} leaves exceed ${12}: split at ${ms.partition.junctions.map((j) => `node ${j}`).join(", ")} into ${ms.parts.length} parts`);
+    for (const p of ms.parts) {
+      say(
+        `           ${p.name}: ${p.leaves} leaves + ${p.flaps - p.leaves} tab, tier ${p.tier ?? "none"}, ${p.folds ? "folds" : "DOES NOT FOLD"}, ` +
+          `cp_status ${p.cpStatus ?? "-"}, ${p.vertices ?? "-"} vertices, ${p.creases ?? "-"} creases` +
+          (p.refusal ? `; ${p.refusal.stage}: ${p.refusal.detail}` : ""),
+      );
+    }
+    say(`assembly   ${ms.assembly.note}`);
+    if (ms.fault) {
+      r.fault = ms.fault;
+      return finish();
+    }
+    r.ok = ms.ok;
+    r.refusal = ms.refusal;
+    if (ms.refusal) say(`REFUSED    ${ms.refusal.message}`);
+    return finish();
   }
 
   // 3c. Chosen budget. Below the requirement: refuse. Above it: more flaps, re-solved.

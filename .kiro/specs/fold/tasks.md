@@ -334,6 +334,29 @@ to "box-pleated animals".
       - README: "four to twelve flaps" replaced by four to six in practice; ladder offers only tiers that fold;
         step and time figures are estimates.
 
+- [x] 3.21 `src/lib/parts.ts`: the partition (spec change, added 2026-11-06, user request; R8.1, R8.2)
+      - Split at the highest-degree node into the subtrees hanging off it, recursively, until every part
+        has 12 or fewer leaves. Tests: leaf coverage, the 12-leaf cap, ordering.
+- [~] 3.22 Per-part solve with the existing tier rules (R8.3)
+      - Per-part report: leaves, tier, folds, cpStatus, vertices, creases, refusal reason. `src/lib/multisheet.ts`.
+      - `[~]`: only the beetle exercised it, and no part pair folded together.
+- [x] 3.23 Assembly note and the `/api/fold` fields (R8.4)
+- [~] 3.24 Verify on `fixtures/aphodius-foetens.jpg`; dog, turtle and tuatara stay single-part, unchanged.
+      Stop after this task: no part selector on the screen unless the beetle folds.
+      - Observed: `partitionTree` on the beetle's 15-leaf tree: junction node 5, 4 parts: 7, 4, 3, 1 leaves (sum 15).
+        Part 1 (7 + tab, hard): `polys_not_valid`. Part 2 (4 + tab, medium): `polys_not_valid`. Part 3 (3 + tab, easy):
+        folds, `has_full_cp`, 18 vertices, 33 creases. Part 4 (1 + tab): 2 flaps, below the 3-flap minimum, not solved.
+        The beetle still does not fold; it stays the refusal ("Part 1 does not fold ..."), now at stage `part`.
+        `polys_multiple_ibps` did not reappear in any part.
+      - The 15 is an overcount by eye on the overlay: each leg ends in two leaves (leg and tarsus fork) and the head has
+        five or six; about nine or ten real flaps. Partitioning does not fix that; it splits the overcount.
+      - A subtree hanging off the junction that is a single limb becomes a part too small to solve (literal R8.1).
+        Not changed: that is a design decision for the user (e.g. grouping small subtrees into one part).
+      - Dog, turtle, tuatara: `multiSheet` null, stdout of `tools/pipeline.ts` identical to before (minus the timing line).
+      - Not done: no part selector or any screen change; `next build` and a live `/api/fold` call not run (route
+        exercised only through `analyseViews`); multi-sheet tiers are per part, so the four-chip ladder is all disabled.
+      - Spec gap: a part's tab counts as a flap for the solver, so a 12-leaf part is 13 flaps and has no tier.
+
 **Gate, 20 Nov:** three subjects produce trees that a human accepts after at most two corrections.
 
 ## Phase 4 — Fold it (20–25 Nov)

@@ -23,6 +23,16 @@ photograph
   → measure: recognition vs complexity
 ```
 
+### Multi-sheet (spec change, 2026-11-06, user request)
+
+When the tree has more than 12 leaves it is partitioned, not refused. Pick the highest-degree node
+(the junction); remove it and take each hanging subtree. A part is a subtree plus the junction as its
+root, so it is a valid tree on its own. A part still above 12 leaves is split again by the same rule
+inside that part. Every leaf lands in exactly one part. Parts are ordered by leaf count, largest first,
+and named Part 1, Part 2. Each part runs the ordinary tier rules and solve; the view folds only if all
+parts fold. The result is joined at a tab with glue or a slot, so it is never described as
+"one square, no cuts, no glue".
+
 The tree is the intermediate representation. Everything downstream is a pure function of it.
 
 ## Why no cuts
@@ -135,6 +145,7 @@ so before the user cuts paper.
 | Silhouette > 90% or < 2% of frame | "I can't find a single object. Try a plainer background." |
 | No distinguishable limbs | "This shape has no limbs to fold. Try an animal or an object with a clear outline." |
 | Subject needs more flaps than the tier allows | "Four flaps cannot make six legs. The cheapest version of this subject is Hard." |
+| A part fails to fold | The view is refused and names the part. |
 | Packing fails to fit | Reduce the grid by one step and retry, twice, then refuse. |
 | State count above a threshold | Warn: "this pattern has many valid folds; follow the collapse arrow." |
 | Paper too thick for the grid | State the required paper before printing. |

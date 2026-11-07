@@ -68,7 +68,7 @@ export function outOfFrame(bytes: Uint8Array): Refusal | null {
 function refusedView(refusal: Refusal): Analysis {
   return {
     ok: false, refusal, fault: null, log: [], image: null, coverage: null, tree: null, contraction: null,
-    selection: null, minimum: null, tiers: null, budget: null, solver: null, solverInput: null, assigned: false, fold: null,
+    selection: null, minimum: null, tiers: null, budget: null, solver: null, solverInput: null, multiSheet: null, assigned: false, fold: null,
     foldCheck: null, foldFacesOmitted: null, flatFold: null, svg: null, images: { mask: null, overlay: null },
     timingsMs: {}, totalMs: 0, candidates: [],
     segmentation: { path: "primary", fallbackReason: null, primaryCandidates: 0, primaryRectangularity: 0, clusters: null, fallbackCandidates: null },

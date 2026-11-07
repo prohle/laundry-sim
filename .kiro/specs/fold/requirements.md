@@ -34,7 +34,10 @@ ladder, and it is the honest answer to "who is this for".
 **In:** one photograph; objects with a clear silhouette and limbs; four to twelve flaps; a single
 square of paper; fold-only, no cuts, no glue.
 
-**Out:** arbitrary objects; faces; anything needing more than twelve flaps; kirigami; wet folding;
+  Spec change, 2026-11-06 (user request): multi-sheet models: a subject needing more than twelve
+  flaps is split into parts, each folded from its own square and joined at a tab with glue or a slot.
+
+**Out:** arbitrary objects; faces; anything where a single part needs more than twelve flaps; kirigami; wet folding;
 curved creases; robot folding (January).
 
 ## Requirements
@@ -96,6 +99,20 @@ curved creases; robot folding (January).
 - R6.2 State the minimum tier for the subject, and why.
 - R6.3 Never claim "any object". Never claim kirigami. Never claim a faithful replica.
 - R6.4 Show the refusal case in the product, not only in the video.
+- R6.5 The single-sheet claim stays "one square, no cuts, no glue". A multi-sheet model must never
+  use that sentence.
+  - Spec change, 2026-11-06 (user request).
+
+### R8 — Multi-sheet models
+
+Spec change, 2026-11-06 (user request).
+
+- R8.1 Split at the highest-degree node into the subtrees hanging off that node, recursively, until
+  every part has 12 or fewer leaves.
+- R8.2 Every leaf appears in exactly one part; the sum of part leaves equals the original leaf count.
+- R8.3 Each part is solved and checked on its own. The view folds only if every part folds.
+- R8.4 The assembly note names the shared junction and the number of parts, and states that a
+  multi-sheet model is joined at a tab and needs glue or a slot.
 
 ### R7 — Measure
 
