@@ -1,7 +1,7 @@
 /**
  * Photograph -> silhouette mask -> tree -> solver -> crease pattern, as a script.
  *
- *   node tools/pipeline.ts <image.jpg|png> [--max-leaves 12] [--max-dim 512] [--out tools/out]
+ *   node tools/pipeline.ts <image.jpg|png> [--max-leaves 12] [--max-dim 512] [--significance 2.0] [--spur 0] [--out tools/out]
  *
  * Not a UI and not a product surface: it exists to run the existing pieces
  * (src/lib/skeleton.ts, ./solver) on a real image and say what happened.
@@ -24,8 +24,8 @@ import { basename, extname, resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import jpeg from "jpeg-js";
 import pngjs from "pngjs";
-import { extractTree } from "../src/lib/skeleton.ts";
-import type { SkeletonTree } from "../src/lib/skeleton.ts";
+import { extractTree, DEFAULT_SIGNIFICANCE_THRESHOLD } from "../src/lib/skeleton.ts";
+import type { SkeletonTree, BranchRecord } from "../src/lib/skeleton.ts";
 
 const { PNG } = pngjs;
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -302,7 +302,7 @@ function main(): number {
 
   const file = process.argv[2];
   if (!file || file.startsWith("--")) {
-    console.error("usage: node tools/pipeline.ts <image.jpg|png> [--max-leaves 12] [--max-dim 512] [--out tools/out]");
+    console.error("usage: node tools/pipeline.ts <image.jpg|png> [--max-leaves 12] [--max-dim 512] [--significance 2.0] [--spur 0] [--out tools/out]");
     return 2;
   }
   const maxLeaves = Number(arg("max-leaves", "12"));
@@ -335,14 +335,30 @@ function main(): number {
   // 3. tree
   const spurArg = arg("spur", "");
   const spurThreshold = spurArg === "" ? undefined : Number(spurArg);
-  const raw = extractTree({ mask: m.mask, width: m.width, height: m.height }, { spurThreshold });
-  const tree = extractTree({ mask: m.mask, width: m.width, height: m.height }, { spurThreshold, maxLeaves });
+  const sigArg = arg("significance", "");
+  const significanceThreshold = sigArg === "" ? undefined : Number(sigArg);
+  const frame = { mask: m.mask, width: m.width, height: m.height };
+  // "Before pruning": both prunings off. "After significance": no flap budget.
+  const unpruned = extractTree(frame, { significanceThreshold: 0, spurThreshold: 0 });
+  const diagnostics: BranchRecord[] = [];
+  const sigOnly = extractTree(frame, { significanceThreshold, spurThreshold, diagnostics });
+  const tree = extractTree(frame, { significanceThreshold, spurThreshold, maxLeaves });
   mark("skeleton");
   writeOverlayPng(join(outDir, `${stem}.overlay.png`), img, m, tree);
   console.log(
-    `tree       spur threshold ${spurThreshold ?? "default (5%)"}; leaves before flap budget: ${raw.leaves}; after maxLeaves=${maxLeaves}: ${tree.leaves}; ` +
+    `tree       significance threshold ${significanceThreshold ?? `default (${DEFAULT_SIGNIFICANCE_THRESHOLD})`}, pixel spur threshold ${spurThreshold ?? "default (off)"}; ` +
+      `leaves: before pruning ${unpruned.leaves}, after significance ${sigOnly.leaves}, after maxLeaves=${maxLeaves} ${tree.leaves}; ` +
       `${tree.nodes.length} nodes, ${tree.edges.length} edges`,
   );
+  const fmt = (r: BranchRecord) =>
+    `(${r.leafX.toFixed(0)},${r.leafY.toFixed(0)}) len ${r.length.toFixed(1)} / radius ${r.radius.toFixed(1)} = ${r.significance.toFixed(2)}`;
+  const byS = (a: BranchRecord, b: BranchRecord) => a.significance - b.significance;
+  const dropped = diagnostics.filter((r) => r.action === "dropped").sort(byS);
+  const kept = diagnostics.filter((r) => r.action === "kept").sort(byS);
+  console.log(`dropped    ${dropped.length} branches, significance ${dropped.length ? dropped[0].significance.toFixed(2) + " .. " + dropped[dropped.length - 1].significance.toFixed(2) : "-"}`);
+  for (const r of dropped) console.log(`             ${fmt(r)}`);
+  console.log(`kept       ${kept.length} branches, significance ${kept.length ? kept[0].significance.toFixed(2) + " .. " + kept[kept.length - 1].significance.toFixed(2) : "-"}`);
+  for (const r of kept) console.log(`             ${fmt(r)}`);
   if (tree.nodes.length < 2 || tree.edges.length === 0) {
     console.log("REFUSED    This shape has no limbs to fold. (tree has fewer than two nodes)");
     return 1;

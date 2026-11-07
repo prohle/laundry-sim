@@ -15,14 +15,29 @@
  *      pixel by pixel and become edges carrying their pixel path length.
  *   3. Keep the largest connected component, break cycles (drop the shortest edge of
  *      each cycle, via a longest-first spanning tree), merge degree-2 nodes.
- *   4. Prune spurs: repeatedly delete the shortest leaf branch shorter than the
- *      threshold, re-merging degree-2 nodes after each deletion.
- *   5. Flap budget: repeatedly delete the shortest leaf branch until leaves <= maxLeaves.
+ *   4. Prune spurs, in this order:
+ *        a. SIGNIFICANCE (runs first). For every leaf branch,
+ *             length       = pixel path length from its junction to the leaf
+ *             radius       = distance-transform value at the junction end
+ *             significance = length / radius
+ *           and the least significant branch below `significanceThreshold` (default 2.0)
+ *           is deleted, one at a time, re-merging degree-2 nodes after each deletion so
+ *           the next measurement sees the real junction. A limb is long and thin relative
+ *           to the body it joins; a spur is short relative to it.
+ *        b. PIXEL threshold `spurThreshold` (runs second, after a). Off by default (0);
+ *           when set, the shortest leaf branch shorter than it is deleted, repeatedly.
+ *   5. Flap budget: repeatedly delete the least significant leaf branch (same measure as 4a,
+ *      ties broken by shorter pixel length) until leaves <= maxLeaves.
  *   6. Normalise coordinates into [0, 1] on the longer axis of the tree's extent,
  *      keeping the aspect ratio. Edge length = Euclidean distance between endpoints.
  *
+ * Distance transform: two-pass chamfer with the Borgefors 5-7-11 mask (axial 5, diagonal 7,
+ * knight move 11, divided by 5), about 2% error against Euclidean. The value at a pixel is
+ * the distance to the nearest background pixel, so the centre of a bar n pixels wide reads
+ * about n/2 + 0.5. The image border counts as background.
+ *
  * Known limits of Zhang-Suen: a perfectly 2-pixel-wide diagonal line can vanish, and
- * thick shapes leave short corner spurs. The spur threshold is what removes those.
+ * thick shapes leave short corner spurs. Pruning is what removes those.
  */
 
 export interface SkeletonInput {
@@ -32,14 +47,44 @@ export interface SkeletonInput {
   height: number;
 }
 
+/**
+ * Default significance threshold: 2.0.
+ *
+ * Calibrated on ONE clean fixture: a cut-out bush dog, which gives the expected six leaves
+ * (four feet, tail, head) for every threshold from 1.75 to 2.5. The beetle fixture has no such
+ * plateau (leaves after pruning: 15 at 1.5, 8 at 2.0, 5 at 2.5, 5 at 3.0). So 2.0 is a starting
+ * point from a single subject, not a universal value, and other subjects may need a different one.
+ */
+export const DEFAULT_SIGNIFICANCE_THRESHOLD = 2.0;
+
 export interface SkeletonOptions {
-  /** Spurs shorter than this many pixels are pruned.
-   *  Default: 5% of the silhouette's larger bounding-box dimension. */
+  /** Leaf branches with length / radius below this are pruned. Runs BEFORE spurThreshold.
+   *  Default DEFAULT_SIGNIFICANCE_THRESHOLD (2.0; see its comment). 0 (or any value <= 0) disables it. */
+  significanceThreshold?: number;
+  /** Leaf branches shorter than this many pixels are pruned. Runs AFTER significance pruning.
+   *  Default 0 (off); it used to default to 5% of the silhouette's larger dimension. */
   spurThreshold?: number;
-  /** Flap budget: remove shortest leaf branches until leaves <= maxLeaves. Default: no limit. */
+  /** If given, one record is pushed per leaf branch judged by significance pruning:
+   *  every dropped branch as it is dropped, and every kept branch once pruning finishes.
+   *  Does not affect the returned tree. */
+  diagnostics?: BranchRecord[];
+  /** Flap budget: remove least-significant leaf branches until leaves <= maxLeaves. Default: no limit. */
   maxLeaves?: number;
   /** Cap on thinning passes. Default: max(width, height). */
   maxIterations?: number;
+}
+
+/** One leaf branch as judged by significance pruning (diagnostics only). */
+export interface BranchRecord {
+  action: "dropped" | "kept";
+  /** Leaf position in image pixels. */
+  leafX: number;
+  leafY: number;
+  /** Pixel path length, junction to leaf. */
+  length: number;
+  /** Distance-transform value at the junction end. */
+  radius: number;
+  significance: number;
 }
 
 export interface TreeNode {
@@ -341,6 +386,126 @@ function countLeaves(g: Graph): number {
 }
 
 /**
+ * Distance to the nearest background pixel for every pixel, on the same zero-padded
+ * (width+2) x (height+2) grid as `thin`. Two-pass chamfer, Borgefors 5-7-11 mask.
+ * Background pixels read 0; the padding is background.
+ */
+function distanceTransform(input: SkeletonInput): Float32Array {
+  const W = input.width + 2;
+  const H = input.height + 2;
+  const INF = 1e9;
+  const d = new Float64Array(W * H);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const inside = x > 0 && y > 0 && x < W - 1 && y < H - 1 && input.mask[(y - 1) * input.width + x - 1] > 0;
+      d[y * W + x] = inside ? INF : 0;
+    }
+  }
+  // [dx, dy, weight] for the forward half-mask; the backward pass uses the negation.
+  const fwd: [number, number, number][] = [
+    [-1, 0, 5], [-1, -1, 7], [0, -1, 5], [1, -1, 7],
+    [-2, -1, 11], [-1, -2, 11], [1, -2, 11], [2, -1, 11],
+  ];
+  const relax = (x: number, y: number, sign: 1 | -1) => {
+    const i = y * W + x;
+    let v = d[i];
+    for (const [dx, dy, w] of fwd) {
+      const nx = x + sign * dx;
+      const ny = y + sign * dy;
+      if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+      const c = d[ny * W + nx] + w;
+      if (c < v) v = c;
+    }
+    d[i] = v;
+  };
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) relax(x, y, 1);
+  for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) relax(x, y, -1);
+  const out = new Float32Array(W * H);
+  for (let i = 0; i < out.length; i++) out[i] = d[i] / 5;
+  return out;
+}
+
+/** Distance-transform value at a graph node (padded coordinates); max of the 3x3 if the
+ *  rounded pixel itself is background, which a cluster centroid can occasionally be. */
+function radiusAt(dt: Float32Array, W: number, H: number, x: number, y: number): number {
+  const cx = Math.round(x);
+  const cy = Math.round(y);
+  const at = (px: number, py: number) => (px >= 0 && py >= 0 && px < W && py < H ? dt[py * W + px] : 0);
+  const v = at(cx, cy);
+  if (v > 0) return v;
+  let m = 0;
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) m = Math.max(m, at(cx + dx, cy + dy));
+  return m;
+}
+
+function branchRecord(
+  g: Graph, dt: Float32Array, W: number, H: number, deg: number[], edge: number, action: BranchRecord["action"],
+): BranchRecord {
+  const e = g.edges[edge];
+  const leafIsA = deg[e.a] === 1;
+  const leaf = g.nodes[leafIsA ? e.a : e.b];
+  const junction = g.nodes[leafIsA ? e.b : e.a];
+  // A lone segment has no junction. Use the larger end as the "body" so a short segment
+  // inside a fat blob (a disc) is still insignificant and a long thin stick is not.
+  const lone = deg[e.a] === 1 && deg[e.b] === 1;
+  const radius = lone
+    ? Math.max(radiusAt(dt, W, H, leaf.x, leaf.y), radiusAt(dt, W, H, junction.x, junction.y))
+    : radiusAt(dt, W, H, junction.x, junction.y);
+  return {
+    action,
+    leafX: leaf.x - 1,
+    leafY: leaf.y - 1,
+    length: e.len,
+    radius,
+    significance: e.len / Math.max(radius, 1e-6),
+  };
+}
+
+/**
+ * Delete the least significant leaf branch whose significance is < limit. Returns false if
+ * none qualifies. Same lone-segment rule as removeShortestLeaf.
+ */
+function removeLeastSignificantLeaf(
+  g: Graph, dt: Float32Array, W: number, H: number, limit: number, diag?: BranchRecord[],
+): boolean {
+  const live = g.edges.map((_, i) => i).filter((i) => g.edges[i].alive);
+  if (live.length === 0) return false;
+  const deg = degrees(g);
+  let best = -1;
+  let bestRec: BranchRecord | null = null;
+  for (const i of live) {
+    const e = g.edges[i];
+    if (deg[e.a] !== 1 && deg[e.b] !== 1) continue;
+    const rec = branchRecord(g, dt, W, H, deg, i, "dropped");
+    if (!(rec.significance < limit)) continue;
+    // Lowest significance first; equal significance (exact ties) falls back to the shorter branch.
+    if (
+      !bestRec ||
+      rec.significance < bestRec.significance ||
+      (rec.significance === bestRec.significance && rec.length < bestRec.length)
+    ) {
+      best = i;
+      bestRec = rec;
+    }
+  }
+  if (best < 0 || !bestRec) return false;
+  diag?.push(bestRec);
+  const e = g.edges[best];
+  e.alive = false;
+  if (deg[e.a] === 1 && deg[e.b] === 1) {
+    // Lone segment: collapse to its midpoint.
+    const na = g.nodes[e.a];
+    const nb = g.nodes[e.b];
+    nb.alive = false;
+    na.x = (na.x + nb.x) / 2;
+    na.y = (na.y + nb.y) / 2;
+  } else {
+    g.nodes[deg[e.a] === 1 ? e.a : e.b].alive = false;
+  }
+  return true;
+}
+
+/**
  * Delete the shortest leaf branch whose length is < limit. Returns false if none qualifies.
  * A lone segment (two leaves, nothing else) collapses to one node at its midpoint, since
  * deleting either end would leave an arbitrary choice.
@@ -401,17 +566,30 @@ export function extractTree(input: SkeletonInput, options: SkeletonOptions = {})
   const empty: SkeletonTree = { nodes: [], edges: [], leaves: 0, frame: { originX: 0, originY: 0, scale: 1 } };
   if (maxX < minX) return empty;
 
-  const larger = Math.max(maxX - minX + 1, maxY - minY + 1);
-  const spurThreshold = options.spurThreshold ?? 0.05 * larger;
+  const significanceThreshold = options.significanceThreshold ?? DEFAULT_SIGNIFICANCE_THRESHOLD;
+  const spurThreshold = options.spurThreshold ?? 0;
   const maxLeaves = options.maxLeaves ?? Infinity;
   const maxIterations = options.maxIterations ?? Math.max(width, height);
 
+  const dt = distanceTransform(input); // before thin(): thin works on its own copy of the mask
   const { buf, W, H } = thin(input, maxIterations);
   const g = buildGraph(buf, W, H);
   makeTree(g);
   smooth(g);
-  while (removeShortestLeaf(g, spurThreshold)) smooth(g);
-  while (countLeaves(g) > maxLeaves && removeShortestLeaf(g, Infinity)) smooth(g);
+  // 4a. significance first, 4b. pixel threshold second, 5. flap budget last.
+  while (removeLeastSignificantLeaf(g, dt, W, H, significanceThreshold, options.diagnostics)) smooth(g);
+  if (options.diagnostics) {
+    const deg = degrees(g);
+    g.edges.forEach((e, i) => {
+      if (e.alive && (deg[e.a] === 1 || deg[e.b] === 1)) {
+        options.diagnostics!.push(branchRecord(g, dt, W, H, deg, i, "kept"));
+      }
+    });
+  }
+  while (spurThreshold > 0 && removeShortestLeaf(g, spurThreshold)) smooth(g);
+  // Flap budget ranks by the same significance measure as 4a, not by pixel length: a long thin
+  // spur on a wide body can outrank a short real limb by length alone. Ties go to the shorter.
+  while (countLeaves(g) > maxLeaves && removeLeastSignificantLeaf(g, dt, W, H, Infinity)) smooth(g);
 
   // Compact ids, convert padded buffer coordinates to image pixel-centre coordinates.
   const newId = new Map<number, number>();

@@ -25,7 +25,7 @@ test("real beetle mask: the tree reaches the hind leg", () => {
       maxX = Math.max(maxX, x);
     }
   }
-  const tree = extractTree({ mask, width, height }, { spurThreshold: 0 });
+  const tree = extractTree({ mask, width, height }, { significanceThreshold: 0, spurThreshold: 0 });
   const xs = tree.nodes.map((n) => tree.frame.originX + n.x * tree.frame.scale);
   const reach = (Math.max(...xs) - Math.min(...xs)) / (maxX - minX);
   console.log(`  beetle: leaves=${tree.leaves} nodes=${tree.nodes.length} reach=${reach.toFixed(3)}`);

@@ -92,6 +92,24 @@ to "box-pleated animals".
         threshold the beetle gives 23 leaves (12 after the flap budget), several on the
         wing-case edge with no limb under them, and the antennae are lost by the threshold mask.
         One image only. Passing the 20 Nov gate needs three subjects.
+      - Significance pruning (spec change, 2026-11-06, refines 3.1): leaf branches with
+        length / radius below a threshold are pruned, radius from a Borgefors 5-7-11 chamfer
+        distance transform; it runs before the pixel `spurThreshold`, which is now off by default.
+        Second subject added: `fixtures/bush-dog.png` (CC0, but background edited and tagged
+        AI-modified on Commons; see `fixtures/README.md`).
+      - **Result: the specified default of 1.0 does not separate spurs from limbs.** It drops only
+        1-7 px stubs (4 of 37 leaves on the beetle, 4 of 18 on the dog). A bump on a body edge
+        scores about 1 + h/R, because the branch from the body axis to the outline is already one
+        radius long. Dog: spurs on the back and rump scored 1.13-1.48, the head 1.03-1.19, legs
+        and tail 3.6-5.4. Sweep (leaves after significance, beetle / dog): 1.0: 33 / 14;
+        1.5: 15 / 7; 2.0: 8 / 6; 2.5: 5 / 6; 3.0: 5 / 5. The dog reaches the expected 6 flaps
+        (4 feet, tail, head) on a plateau from 1.75 to 2.5; the beetle has no plateau. Two
+        subjects, one of them edited: not enough to set a default. Left at 1.0 as specified.
+      - Spec change, 2026-11-06 (user decision): default significance threshold is now **2.0**,
+        calibrated on one clean fixture (the dog); the beetle has no plateau, so it is a starting
+        point, not a universal value. The flap budget (`maxLeaves`) now drops the lowest-significance
+        leaf first, ties by shorter pixel length, instead of the shortest by pixels. At 2.0 / budget 12:
+        beetle 37 -> 8 -> 8 leaves, dog 18 -> 6 -> 6; both solve and build a crease pattern.
 - [ ] 3.3 Minimum-tier computation from the tree
 - [ ] 3.4 Human-in-the-loop correction: drag, lengthen, delete
 - [ ] 3.5 Refusal states: no limbs, too many limbs, packing fails
