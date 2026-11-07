@@ -167,6 +167,14 @@ to "box-pleated animals".
 - [ ] 5.1 The ladder: one photograph, four tiers, side by side
 - [ ] 5.2 3D preview of the base
 - [ ] 5.3 Collapse animation: crease pattern to base
+      - Spec change, 2026-11-06 (user request): a check run before the renderer exists. Hosted
+        Origami Simulator (MIT, Amanda Ghassaei) driven headlessly; `tools/out/bush-dog.fold.json`
+        loaded after a copy renamed `.fold` (the app rejects `.json`) with "use current angles"
+        unticked. Screenshots `tools/out/sim-1-start.png`, `sim-2-partway.png`, `sim-3-end.png`.
+        Result: loads; 0% is a flat lopsided polygon; 100% is a thin wedge with faces passing
+        through each other, still moving after 15 s. It does not read as an animal. Not a pass.
+      - Kawasaki default tolerance is now 2e-5 rad (`src/lib/flatfold.ts`); the largest residual is
+        still reported.
 - [ ] 5.4 Printable pattern with legend, paper size, step count, time estimate
 - [ ] 5.5 Mobile at 390 px; deploy to a stable public URL
 

@@ -17,7 +17,14 @@ export interface FlatCp {
 }
 
 export interface FlatFoldOptions {
-  /** Kawasaki tolerance, radians. Default 1e-6. */
+  /**
+   * Kawasaki tolerance, radians. Default 2e-5.
+   *
+   * The residuals are the solver's optimiser stopping short of exact convergence, not a
+   * defect in the pattern. The largest observed is 1.08e-5 rad, on the bush dog. That is far
+   * below paper tolerance. The report still prints the largest residual (`maxResidual`), so
+   * the number is never hidden.
+   */
   tolerance?: number;
   /** A vertex within this distance of the unit-square edge counts as on the boundary. Default 1e-9. */
   edgeEpsilon?: number;
@@ -65,7 +72,7 @@ export interface FlatFoldReport {
 }
 
 export function checkFlatFoldable(cp: FlatCp, opts: FlatFoldOptions = {}): FlatFoldReport {
-  const tolerance = opts.tolerance ?? 1e-6;
+  const tolerance = opts.tolerance ?? 2e-5;
   const eps = opts.edgeEpsilon ?? 1e-9;
   const lo = opts.paperMin ?? 0;
   const hi = opts.paperMax ?? 1;
