@@ -277,6 +277,22 @@ to "box-pleated animals".
         instead of reporting 4 flaps. Full turtle, dog and tuatara: 0 border pixels each. Threshold is "any".
       - Not done: a single photograph through `analyseImage` is not checked; the UI does not offer views.
 
+- [x] 3.17 Screen accepts one to four photographs and shows the per-view verdicts
+      (spec change, added 2026-11-06, user request; R1.1, R1.4, R1.5)
+      - `/api/fold` always returns `views`: one entry for a single photograph (built by `singleViewReport`,
+        no out-of-frame check added to the single path), and each report now has `shown` (the view the
+        top-level fields describe; differs from `chosen` only when nothing folds).
+      - `src/app/page.tsx`: select several, drop several, or add after the first; thumbnails with filename and a
+        remove control; a "Make the pattern" step; POST multipart, one `image` part per file. Results: a row per
+        view (label, flaps, tier, folds, "Used", refusal reason), the disagreement sentence above the panels,
+        the shown view's tree on its own photograph. Editing a tree re-solves the shown view only.
+      - Verified in headless Chromium at 1280 and 390 px against `next dev`: dog alone gives 6 flaps, Medium,
+        pattern, `views` length 1 (raw body and multipart); turtle crop + full turtle: crop refused out of
+        frame, full chosen (6 flaps, Medium), disagreement shown. No console errors, overflow 0 px in all four
+        runs. Screenshots `tools/out/ui-multi-{1280,390}-{one,two}.png`.
+      - Not done: drag-and-drop was not exercised (files set on the input); `next build` not run here; the
+        four-image limit and the remove control were not scripted.
+
 **Gate, 20 Nov:** three subjects produce trees that a human accepts after at most two corrections.
 
 ## Phase 4 — Fold it (20–25 Nov)

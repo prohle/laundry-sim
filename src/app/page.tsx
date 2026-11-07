@@ -17,99 +17,136 @@ interface FoldResponse {
   pattern: { svg: string | null; cp?: CollapseCp | null } | null;
   contraction?: { contracted: unknown[]; dropped: { leaf: number; length: number }[] } | null;
   totalMs?: number;
+  views?: ViewVerdict[];
+  disagreement?: string | null;
 }
+
+/** One entry of `views` in the response; always present, one entry for a single photograph. */
+interface ViewVerdict {
+  view: number;
+  leaves: number | null;
+  tier: string | null;
+  folds: boolean;
+  chosen: boolean;
+  shown: boolean;
+  refusal: { stage: string; message: string; detail: string | null } | null;
+}
+
+interface Item { id: number; file: File; url: string }
 
 type View =
   | { kind: "empty"; notice: string | null }
-  | { kind: "processing"; photoUrl: string }
-  | { kind: "result"; photoUrl: string; file: File; name: string; data: FoldResponse; svg: string }
-  | { kind: "refusal"; photoUrl: string; file: File; data: FoldResponse; message: string }
-  | { kind: "error"; photoUrl: string | null; message: string };
+  | { kind: "staged"; items: Item[]; notice: string | null }
+  | { kind: "processing"; items: Item[] }
+  | { kind: "result"; items: Item[]; shown: Item; data: FoldResponse; views: ViewVerdict[]; svg: string }
+  | { kind: "refusal"; items: Item[]; shown: Item; data: FoldResponse; views: ViewVerdict[]; message: string }
+  | { kind: "error"; items: Item[]; message: string };
 
 const ACCEPTED = ["image/png", "image/jpeg"];
 const MAX_BYTES = 10 * 1024 * 1024;
+const MAX_VIEWS = 4;
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+let nextId = 1;
+const makeItem = (file: File): Item => ({ id: nextId++, file, url: URL.createObjectURL(file) });
 
 export default function Home() {
   const [view, setView] = useState<View>({ kind: "empty", notice: null });
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const urlRef = useRef<string | null>(null);
+  // Every object URL made and not yet revoked, so none leaks when photographs are removed or replaced.
+  const liveRef = useRef<Map<number, string>>(new Map());
 
-  // Release the object URL for the photograph when it is replaced and on unmount.
-  const setPhotoUrl = useCallback((next: string | null) => {
-    if (urlRef.current) URL.revokeObjectURL(urlRef.current);
-    urlRef.current = next;
-  }, []);
-  useEffect(() => () => {
-    abortRef.current?.abort();
-    if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+  const track = (items: Item[]) => { for (const i of items) liveRef.current.set(i.id, i.url); };
+  const release = (ids: number[] | "all") => {
+    for (const [id, url] of [...liveRef.current]) {
+      if (ids === "all" || ids.includes(id)) { URL.revokeObjectURL(url); liveRef.current.delete(id); }
+    }
+  };
+  useEffect(() => {
+    const live = liveRef.current;
+    return () => {
+      abortRef.current?.abort();
+      for (const url of live.values()) URL.revokeObjectURL(url);
+      live.clear();
+    };
   }, []);
 
   const reset = useCallback((notice: string | null = null) => {
     abortRef.current?.abort();
-    setPhotoUrl(null);
+    for (const url of liveRef.current.values()) URL.revokeObjectURL(url);
+    liveRef.current.clear();
     setView({ kind: "empty", notice });
     if (inputRef.current) inputRef.current.value = "";
-  }, [setPhotoUrl]);
+  }, []);
 
-  const submit = useCallback(async (file: File) => {
-    if (!ACCEPTED.includes(file.type)) {
-      setView({ kind: "empty", notice: "That file is not a PNG or JPEG photograph." });
-      return;
+  /** Add photographs to the staged set (up to four), with a plain notice for any that were left out. */
+  const addFiles = (files: FileList | File[] | null) => {
+    const list = Array.from(files ?? []);
+    if (list.length === 0) return;
+    const current = view.kind === "staged" ? view.items : [];
+    const notes: string[] = [];
+    const accepted: File[] = [];
+    for (const f of list) {
+      if (!ACCEPTED.includes(f.type)) notes.push(`${f.name} is not a PNG or JPEG photograph.`);
+      else if (f.size > MAX_BYTES) notes.push(`${f.name} is over 10 MiB.`);
+      else accepted.push(f);
     }
-    if (file.size > MAX_BYTES) {
-      setView({ kind: "empty", notice: "The photograph must be under 10 MiB." });
-      return;
-    }
+    const room = MAX_VIEWS - current.length;
+    if (accepted.length > room) notes.push(`Only ${MAX_VIEWS} photographs are used; ${accepted.length - room} left out.`);
+    const added = accepted.slice(0, Math.max(room, 0)).map(makeItem);
+    track(added);
+    const items = [...current, ...added];
+    const notice = notes.length ? notes.join(" ") : null;
+    setView(items.length ? { kind: "staged", items, notice } : { kind: "empty", notice });
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const removeItem = (id: number) => {
+    if (view.kind !== "staged") return;
+    release([id]);
+    const items = view.items.filter((i) => i.id !== id);
+    setView(items.length ? { kind: "staged", items, notice: null } : { kind: "empty", notice: null });
+  };
+
+  const submit = useCallback(async (items: Item[]) => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-
-    const photoUrl = URL.createObjectURL(file);
-    setPhotoUrl(photoUrl);
-    setView({ kind: "processing", photoUrl });
+    setView({ kind: "processing", items });
 
     try {
-      // The raw bytes are the request body; the Content-Type names the format.
-      const res = await fetch("/api/fold", {
-        method: "POST",
-        headers: { "Content-Type": file.type },
-        body: file,
-        signal: controller.signal,
-      });
+      // One `image` part per photograph, in the order shown.
+      const form = new FormData();
+      for (const i of items) form.append("image", i.file, i.file.name);
+      const res = await fetch("/api/fold", { method: "POST", body: form, signal: controller.signal });
       const body = await res.json().catch(() => null);
       if (!res.ok || !body) {
         const message = body?.message ?? `The server answered ${res.status}.`;
-        setView({ kind: "error", photoUrl, message });
+        setView({ kind: "error", items, message });
         return;
       }
       const data = body as FoldResponse;
+      const views = data.views?.length ? data.views : [];
+      const shownAt = Math.max(0, views.findIndex((v) => v.shown));
+      const shown = items[shownAt] ?? items[0];
       // A pattern is shown only when the API says ok and sent one.
       const svg = data.ok === true ? data.pattern?.svg ?? null : null;
       if (svg) {
-        setView({ kind: "result", photoUrl, file, name: file.name, data, svg });
+        setView({ kind: "result", items, shown, data, views, svg });
       } else {
         setView({
-          kind: "refusal",
-          photoUrl,
-          file,
-          data,
+          kind: "refusal", items, shown, data, views,
           message: data.refusal?.message ?? "The pipeline did not produce a printable pattern.",
         });
       }
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") return;
-      setView({ kind: "error", photoUrl, message: "The server could not be reached." });
+      setView({ kind: "error", items, message: "The server could not be reached." });
     }
-  }, [setPhotoUrl]);
-
-  const onFiles = (files: FileList | null) => {
-    const f = files?.[0];
-    if (f) void submit(f);
-  };
+  }, []);
 
   const busy = view.kind === "processing";
 
@@ -124,44 +161,86 @@ export default function Home() {
         ref={inputRef}
         className="upload-input"
         type="file"
+        multiple
         accept="image/png,image/jpeg"
         tabIndex={-1}
         aria-hidden="true"
-        onChange={(e) => onFiles(e.target.files)}
+        onChange={(e) => addFiles(e.target.files)}
       />
 
       <main className="screen">
         <p className="supported">
-          Animals with visible limbs on a plain background. Four to twelve flaps, one square, no cuts.
+          One to four photographs of the same object, from different angles. Four to twelve flaps, one square, no cuts.
         </p>
 
-        {view.kind === "empty" && (
+        {(view.kind === "empty" || view.kind === "staged") && (
           <div
-            className={`panel-canvas panel-canvas--upload dropzone${dragging ? " panel-canvas--dragging" : ""}`}
-            role="button"
-            tabIndex={0}
-            aria-label="Choose a photograph. Animals with visible limbs on a plain background."
-            onClick={() => inputRef.current?.click()}
-            onKeyDown={(e) => {
+            className={`panel-canvas panel-canvas--upload dropzone${view.kind === "staged" ? " dropzone--staged" : ""}${dragging ? " panel-canvas--dragging" : ""}`}
+            role={view.kind === "empty" ? "button" : "group"}
+            tabIndex={view.kind === "empty" ? 0 : undefined}
+            aria-label={view.kind === "empty"
+              ? "Choose one to four photographs of the same object, from different angles."
+              : "Photographs chosen. Drop more to add."}
+            onClick={view.kind === "empty" ? () => inputRef.current?.click() : undefined}
+            onKeyDown={view.kind === "empty" ? (e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
                 inputRef.current?.click();
               }
-            }}
+            } : undefined}
             onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
             onDrop={(e) => {
               e.preventDefault();
               setDragging(false);
-              onFiles(e.dataTransfer.files);
+              addFiles(e.dataTransfer.files);
             }}
           >
-            <div className="empty-state">
-              <div className="empty-state__cross" />
-              <span className="empty-state__text">Drop a photograph, or click to choose one</span>
-              <span className="empty-state__sub">PNG or JPEG, under 10 MiB</span>
-              {view.notice && <span className="empty-state__notice" role="alert">{view.notice}</span>}
-            </div>
+            {view.kind === "empty" ? (
+              <div className="empty-state">
+                <div className="empty-state__cross" />
+                <span className="empty-state__text">Drop up to four photographs, or click to choose them</span>
+                <span className="empty-state__sub">PNG or JPEG, under 10 MiB each</span>
+                <span className="empty-state__sub">More views help when a limb is hidden in one of them.</span>
+                {view.notice && <span className="empty-state__notice" role="alert">{view.notice}</span>}
+              </div>
+            ) : (
+              <div className="staged">
+                <ul className="thumbs" aria-label="Chosen photographs">
+                  {view.items.map((i, n) => (
+                    <li key={i.id} className="thumb">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={i.url} alt="" className="thumb__img" />
+                      <span className="thumb__name" title={i.file.name}>{n + 1}. {i.file.name}</span>
+                      <button
+                        type="button"
+                        className="thumb__remove"
+                        aria-label={`Remove ${i.file.name}`}
+                        onClick={() => removeItem(i.id)}
+                      >×</button>
+                    </li>
+                  ))}
+                </ul>
+                <p className="edit-bar__help">
+                  {view.items.length} of {MAX_VIEWS} photographs. More views help when a limb is hidden in one of them.
+                </p>
+                {view.notice && <p className="edit-bar__note" role="alert">{view.notice}</p>}
+                <div className="edit-bar__buttons">
+                  <button type="button" className="upload-label" onClick={() => void submit(view.items)}>
+                    Make the pattern
+                  </button>
+                  <button
+                    type="button"
+                    className="upload-label"
+                    disabled={view.items.length >= MAX_VIEWS}
+                    onClick={() => inputRef.current?.click()}
+                  >
+                    Add a photograph
+                  </button>
+                  <button type="button" className="upload-label" onClick={() => reset()}>Start again</button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -169,17 +248,19 @@ export default function Home() {
           <section className="panel-col panel-col--single" aria-busy="true">
             <div className="panel-canvas panel-canvas--photo">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={view.photoUrl} alt="Your photograph" className="photo-plain" />
+              <img src={view.items[0].url} alt="Your photograph" className="photo-plain" />
               <div className="processing-overlay" role="status">
                 <div className="processing-spinner" />
-                <span className="processing-label">Finding the limbs and packing the paper</span>
+                <span className="processing-label">
+                  {view.items.length > 1 ? `Reading ${view.items.length} views` : "Finding the limbs and packing the paper"}
+                </span>
               </div>
             </div>
           </section>
         )}
 
         {(view.kind === "result" || view.kind === "refusal") && (
-          <Outcome key={view.photoUrl + view.data.totalMs} view={view} onAgain={() => reset()} />
+          <Outcome key={view.items.map((i) => i.id).join("-") + view.data.totalMs} view={view} onAgain={() => reset()} />
         )}
 
         {view.kind === "error" && (
@@ -188,17 +269,49 @@ export default function Home() {
               <p className="notice__title">The pattern could not be made</p>
               <p className="notice__body">{view.message}</p>
               <button type="button" className="upload-label" onClick={() => reset()}>
-                Try another photograph
+                Try other photographs
               </button>
             </div>
           </section>
         )}
 
         <p className="privacy">
-          The photograph is sent to the server, processed in memory and not stored.
+          The photographs are sent to the server, processed in memory and not stored.
         </p>
       </main>
       {busy && <div className="progress-bar" aria-hidden="true"><div className="progress-bar__fill" /></div>}
+    </div>
+  );
+}
+
+/** One row per photograph: label, flaps, tier, whether it folds, which was used, and why not if refused. */
+function ViewsTable({ items, views, disagreement }: { items: Item[]; views: ViewVerdict[]; disagreement: string | null }) {
+  return (
+    <div className="views">
+      {disagreement && <p className="views__disagreement" role="status">{disagreement}</p>}
+      <ul className="views__list" aria-label="Verdict for each photograph">
+        {views.map((v, n) => {
+          const item = items[n];
+          return (
+            <li key={v.view} className={`views__row${v.chosen ? " views__row--chosen" : ""}${v.refusal ? " views__row--refused" : ""}`}>
+              {item && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={item.url} alt="" className="views__thumb" />
+              )}
+              <div className="views__text">
+                <span className="views__label" title={item?.file.name}>View {v.view}{item ? ` · ${item.file.name}` : ""}</span>
+                <span className="views__facts">
+                  {v.leaves === null ? "No flaps found" : `${v.leaves} flaps`}
+                  {" · "}{v.tier ? cap(v.tier) : "no tier"}
+                  {" · "}{v.folds ? "folds" : "does not fold"}
+                </span>
+                {v.refusal && <span className="views__reason">{v.refusal.message}</span>}
+              </div>
+              {v.chosen && <span className="views__chosen">Used</span>}
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
@@ -212,6 +325,8 @@ function Outcome({
 }) {
   // The server's latest answer. Folding an edited tree replaces it; the photograph stays.
   const [data, setData] = useState<FoldResponse>(view.data);
+  // The per-view verdicts belong to the upload; folding an edited tree re-solves the shown view only.
+  const { views, disagreement } = { views: view.views, disagreement: view.data.disagreement ?? null };
   const [svg, setSvg] = useState<string | null>(view.kind === "result" ? view.svg : null);
   const [refusalMessage, setRefusalMessage] = useState<string>(view.kind === "refusal" ? view.message : "");
 
@@ -233,11 +348,11 @@ function Outcome({
   const tierName = data.minimumTier?.tier ?? "pattern";
   useEffect(() => {
     if (!svg || !isResult) { setDownload(null); return; }
-    const stem = view.file.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "photograph";
+    const stem = view.shown.file.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || "photograph";
     const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
     setDownload({ url, filename: `fold-${stem}-${tierName}-crease-pattern.svg` });
     return () => URL.revokeObjectURL(url);
-  }, [svg, isResult, view.file, tierName]);
+  }, [svg, isResult, view.shown.file, tierName]);
 
   const apply = (r: { ok: true; tree: SkeletonTree } | { ok: false; message: string }) => {
     if (r.ok) {
@@ -254,7 +369,7 @@ function Outcome({
     setEditNote(null);
     try {
       const form = new FormData();
-      form.append("image", view.file);
+      form.append("image", view.shown.file);
       form.append("tree", JSON.stringify(tree));
       const res = await fetch("/api/fold", { method: "POST", body: form });
       const body = await res.json().catch(() => null);
@@ -290,15 +405,19 @@ function Outcome({
         <p className="summary__reason">{tier?.reason ?? ""}</p>
       </div>
 
+      {views.length > 1 && <ViewsTable items={view.items} views={views} disagreement={disagreement} />}
+
       <div className="panel-split">
         <div className="panel-col">
           <div className="panel-header">
-            <span className="panel-header__label">Photograph and flap tree</span>
+            <span className="panel-header__label">
+              {views.length > 1 ? `View ${views.findIndex((v) => v.shown) + 1}: photograph and flap tree` : "Photograph and flap tree"}
+            </span>
             {flaps !== null && <span className="panel-header__badge">{flaps} flaps</span>}
           </div>
           <div className="panel-canvas panel-canvas--photo">
             <TreeOverlay
-              photoUrl={view.photoUrl}
+              photoUrl={view.shown.url}
               image={data.image}
               tree={tree}
               disabled={folding}
@@ -367,7 +486,7 @@ function Outcome({
                 A pattern is printed only when every crease has a mountain or valley assignment.
               </p>
               <button type="button" className="upload-label" onClick={onAgain}>
-                Try another photograph
+                Try other photographs
               </button>
             </div>
           )}
@@ -382,7 +501,7 @@ function Outcome({
       {isResult && (
         <div className="actions">
           <button type="button" className="upload-label" onClick={onAgain}>
-            Try another photograph
+            Try other photographs
           </button>
         </div>
       )}

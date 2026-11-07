@@ -18,6 +18,8 @@ export interface ViewReport {
   tier: string | null;
   folds: boolean;
   chosen: boolean;
+  /** The view whose tree, photograph and pattern the top-level fields describe. Equals `chosen` unless nothing folds. */
+  shown: boolean;
   /** Penalised score at the chosen threshold; null when no sweep ran. Tiebreak only. */
   score: number | null;
   refusalStage: string | null;
@@ -66,6 +68,14 @@ function refusedView(refusal: Refusal): Analysis {
   };
 }
 
+/** The report for a single photograph, so a caller has one code path whether it sent one image or four. */
+export function singleViewReport(r: Analysis): ViewReport {
+  return {
+    view: 1, leaves: r.tree?.leaves ?? null, tier: r.minimum?.tier ?? null, folds: r.ok, chosen: r.ok, shown: true,
+    score: score(r), refusalStage: r.refusal?.stage ?? null, refusal: r.refusal,
+  };
+}
+
 export function disagreementMessage(views: (Pick<ViewReport, "view" | "leaves" | "folds" | "chosen"> & { refusalStage?: string | null })[]): string | null {
   if (views.length < 2) return null;
   const chosen = views.find((v) => v.chosen);
@@ -97,7 +107,7 @@ export async function analyseViews(views: Uint8Array[], opts: PipelineOptions = 
   const pick = pool[0];
   const reports: ViewReport[] = results.map((r, i) => ({
     view: i + 1, leaves: leaves[i], tier: r.minimum?.tier ?? null, folds: r.ok,
-    chosen: i === pick && foldable.length > 0, score: scores[i], refusalStage: r.refusal?.stage ?? null, refusal: r.refusal,
+    chosen: i === pick && foldable.length > 0, shown: i === pick, score: scores[i], refusalStage: r.refusal?.stage ?? null, refusal: r.refusal,
   }));
   return { ...results[pick], views: reports, disagreement: disagreementMessage(reports) };
 }

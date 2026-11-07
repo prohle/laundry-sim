@@ -29,7 +29,7 @@
 import type { NextRequest } from "next/server";
 import { sniffImage, ImageDecodeError } from "@/lib/pipeline";
 import { analyseImage } from "@/lib/segment";
-import { analyseViews, MAX_VIEWS, type ViewsAnalysis } from "@/lib/views";
+import { analyseViews, singleViewReport, MAX_VIEWS, type ViewsAnalysis } from "@/lib/views";
 import { validateEditedTree } from "@/lib/tree-validate";
 import type { SkeletonTree } from "@/lib/skeleton";
 
@@ -181,8 +181,8 @@ export async function POST(request: NextRequest): Promise<Response> {
       // Every object found (task 3.11), best first; the top-level fields above describe candidates[0].
       candidates: result.candidates,
       segmentation: result.segmentation,
-      // Several photographs (R1.4, R1.5): every view, and the warning if they disagree. Null with one photograph.
-      views: result.views ?? null,
+      // Several photographs (R1.4, R1.5): every view, and the warning if they disagree. With one photograph, `views` has one entry and `disagreement` is null.
+      views: result.views ?? [singleViewReport(result)],
       disagreement: result.disagreement ?? null,
       timingsMs: result.timingsMs,
       totalMs: result.totalMs,
