@@ -65,6 +65,19 @@ test("the validator rejects each structural fault", () => {
   assert.equal(mutate((x) => (x.edges_vertices = [])).ok, false);
 });
 
+test("fold angles follow the assignment and the validator checks them", () => {
+  const { fold } = cpToFold({ ...square(), creases: [...square().creases, { from: 1, to: 3, fold: "M" }] });
+  assert.deepEqual(fold.edges_foldAngle, [0, 0, 0, 0, -180, 180]);
+  assert.equal(validateFold(fold).ok, true);
+  const bad = (f: (x: typeof fold) => void) => {
+    const c = structuredClone(fold);
+    f(c);
+    return validateFold(c);
+  };
+  assert.match(bad((x) => x.edges_foldAngle.pop()).errors.join(), /5 entries for 6 edges/);
+  assert.match(bad((x) => (x.edges_foldAngle[4] = 90)).errors.join(), /fold angle 90/);
+});
+
 test("all-flat patterns are marked as not assigned", () => {
   const cp = square();
   cp.creases.forEach((c) => (c.fold = "F"));

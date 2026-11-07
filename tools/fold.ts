@@ -4,7 +4,7 @@
  *   node tools/fold.ts <solver.json> [--out file.fold.json]
  *
  * Fields written: file_spec, file_creator, file_classes, frame_classes, vertices_coords,
- * edges_vertices, edges_assignment, and faces_vertices when the solver supplied well-formed
+ * edges_vertices, edges_assignment, edges_foldAngle (M 180, V -180, F/B 0), and faces_vertices when the solver supplied well-formed
  * facets. Assignment letters are the solver's own: M, V, F, B (and U for an unknown code).
  *
  * `faces_vertices` is omitted, never guessed, when `cp.faces` is empty; `faces_note` says why.
@@ -27,6 +27,8 @@ export interface FoldFile {
   vertices_coords: [number, number][];
   edges_vertices: [number, number][];
   edges_assignment: string[];
+  /** Degrees: M = 180, V = -180, F/B/U = 0. A direct function of edges_assignment; nothing is tuned. */
+  edges_foldAngle: number[];
   faces_vertices?: number[][];
   "fold:cp_status"?: string;
   "fold:mountain_valley_computed": boolean;
@@ -48,6 +50,12 @@ export interface FoldResult {
 
 const EPS = 1e-9;
 const LETTERS = new Set(["M", "V", "F", "B", "U"]);
+const ANGLES = new Set([180, -180, 0]);
+
+/** Mountain 180, valley -180, flat 0, border 0 (an unknown code is also 0). */
+export function foldAngle(letter: string): number {
+  return letter === "M" ? 180 : letter === "V" ? -180 : 0;
+}
 
 export function cpToFold(
   cp: Cp & { faces?: number[][]; faces_note?: string | null },
@@ -61,6 +69,7 @@ export function cpToFold(
     vertices_coords: cp.vertices.map(([x, y]) => [x, y]),
     edges_vertices: cp.creases.map((c) => [c.from, c.to]),
     edges_assignment: cp.creases.map((c) => c.fold),
+    edges_foldAngle: cp.creases.map((c) => foldAngle(c.fold)),
     "fold:mountain_valley_computed": cp.creases.some((c) => c.fold === "M" || c.fold === "V"),
   };
   if (meta.cpStatus) fold["fold:cp_status"] = meta.cpStatus;
@@ -112,6 +121,15 @@ export function validateFold(fold: FoldFile): FoldValidation {
   } else {
     a.forEach((l, i) => {
       if (!LETTERS.has(l)) errors.push(`edge ${i} has assignment "${l}", expected one of M V F B U`);
+    });
+  }
+
+  const ang = fold.edges_foldAngle;
+  if (!Array.isArray(ang) || ang.length !== e.length) {
+    errors.push(`edges_foldAngle has ${ang?.length ?? "no"} entries for ${e.length} edges`);
+  } else {
+    ang.forEach((x, i) => {
+      if (!ANGLES.has(x)) errors.push(`edge ${i} has fold angle ${x}, expected 180, -180 or 0`);
     });
   }
 

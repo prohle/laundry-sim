@@ -173,6 +173,15 @@ to "box-pleated animals".
         unticked. Screenshots `tools/out/sim-1-start.png`, `sim-2-partway.png`, `sim-3-end.png`.
         Result: loads; 0% is a flat lopsided polygon; 100% is a thin wedge with faces passing
         through each other, still moving after 15 s. It does not read as an animal. Not a pass.
+      - Spec change, 2026-11-06 (user hypothesis): the first run crumpled because the FOLD had no
+        `edges_foldAngle`. `tools/fold.ts` now writes it (M 180, V -180, F/B 0), a direct function of
+        the assignment, with a validator check (length equals edge count, values in {180, -180, 0}).
+        Dog: 27 M, 39 V, 22 F, 20 B. Re-run, screenshots `tools/out/sim2-*.png`: **hypothesis not
+        confirmed as sufficient.** Loaded with no dialog (the "use current angles" box is ticked by
+        default and the dialog only appears for files without angles). 50%: a crumpled star of
+        flat faces, no limbs. 100%: a flat sliver, faces crossing, strain everywhere, never settled.
+        Stopped there; no per-crease tuning. The open finding above (faces cover 0.84 of the
+        sheet, so the mesh is not a full square) is the next suspect and is not investigated.
       - Kawasaki default tolerance is now 2e-5 rad (`src/lib/flatfold.ts`); the largest residual is
         still reported.
 - [ ] 5.4 Printable pattern with legend, paper size, step count, time estimate
