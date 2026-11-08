@@ -10,6 +10,8 @@ import type { Silhouette } from "./hull.ts";
 import { hullMesh, FACES_BY_LEVEL } from "./mesh.ts";
 import { buildNet, A4 } from "./net.ts";
 import { netToSvg } from "./net-svg.ts";
+import { buildNetFold, netFoldFrame, measureNetFold } from "./netfold.ts";
+import type { NetFold } from "./netfold.ts";
 
 import { SLOT_ANGLES, SLOT_NAMES, MIN_HOLLOW_VIEWS, MAX_HOLLOW_VIEWS } from "./hollow-slots.ts";
 export { SLOT_ANGLES, SLOT_NAMES, MIN_HOLLOW_VIEWS, MAX_HOLLOW_VIEWS };
@@ -41,13 +43,16 @@ export interface HollowReport {
   volume: number | null;
   assembly: { parts: number; tabsToGlue: number; tabsToTape: number; note: string } | null;
   svg: string | null;
+  /** The net as rigid panels on a spanning tree, for the 3D fold (R9.6), and the closure gap at t = 1 in mm. */
+  fold: NetFold | null;
+  closureGapMm: number | null;
   views: { slot: string; angleDeg: number; coverage: number }[];
 }
 
 function refused(level: number, views: HollowReport["views"], stage: HollowStage, message: string, detail: string | null): HollowReport {
   return {
     ok: false, refusal: { stage, message, detail }, level, faces: null, tabs: null, tabsDropped: null,
-    paper: { name: A4.name, width: A4.width, height: A4.height }, bbox: null, volume: null, assembly: null, svg: null, views,
+    paper: { name: A4.name, width: A4.width, height: A4.height }, bbox: null, volume: null, assembly: null, svg: null, fold: null, closureGapMm: null, views,
   };
 }
 
@@ -132,13 +137,16 @@ export function runHollow(photos: Uint8Array[], level: number): HollowReport {
   }
   const net = n.net;
   const dropped = net.tabsDropped.length;
+  const nf = buildNetFold(net, m.mesh);
+  if (!nf.ok) return refused(level, s.views, "net", "The net could not be folded back into a solid.", nf.message);
+  const closureGapMm = measureNetFold(nf.fold, netFoldFrame(nf.fold, 1)).closureGapMm;
   return {
     ok: true, refusal: null, level,
     faces: net.faces.length, tabs: net.tabs.length, tabsDropped: dropped,
     paper: { name: net.paper.name, width: net.paper.width, height: net.paper.height },
     bbox: net.bbox, volume: m.mesh.volume,
     assembly: { parts: 1, tabsToGlue: net.tabs.length, tabsToTape: dropped, note: assemblyNote(net.tabs.length, dropped, net.faces.length) },
-    svg: netToSvg(net), views: s.views,
+    svg: netToSvg(net), fold: nf.fold, closureGapMm, views: s.views,
   };
 }
 

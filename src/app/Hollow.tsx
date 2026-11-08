@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import NetFoldView from "./NetFoldView";
+import type { NetFold } from "@/lib/netfold";
 import { SLOT_ANGLES, SLOT_NAMES, MAX_HOLLOW_VIEWS, MIN_HOLLOW_VIEWS } from "@/lib/hollow-slots";
 
 export type Mode = "fold" | "hollow";
@@ -26,6 +28,8 @@ interface HollowResponse {
   volume: number | null;
   assembly: { parts: number; tabsToGlue: number; tabsToTape: number; note: string } | null;
   svg: string | null;
+  fold: NetFold | null;
+  closureGapMm: number | null;
 }
 
 interface Item { id: number; file: File; url: string }
@@ -183,8 +187,14 @@ export default function HollowMode({ modeSwitch }: { modeSwitch: React.ReactNode
               </p>
               <p className="hollow-facts">A rough skin around the outlines you gave, not a replica.</p>
             </div>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={svgUrl} alt={`Net with ${d.faces} faces and ${d.tabs} tabs: solid lines are cuts, dashed lines are folds.`} className="hollow-net" />
+            <div className="hollow-pair">
+              <figure className="hollow-pair__net">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={svgUrl} alt={`Net with ${d.faces} faces and ${d.tabs} tabs: solid lines are cuts, dashed lines are folds.`} className="hollow-net" />
+                <figcaption className="hollow-facts">For printing: cut the solid lines, fold the dashed ones.</figcaption>
+              </figure>
+              {d.fold && <NetFoldView key={svgUrl} fold={d.fold} />}
+            </div>
             <a className="upload-label" href={svgUrl} download="hollow-net.svg">Download the net (SVG)</a>
           </section>
         )}

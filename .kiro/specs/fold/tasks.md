@@ -441,6 +441,23 @@ to "box-pleated animals".
       - Observed, turtle, 1280 and 390 px, no click: `foldT` 0.006 -> 0.133 after 1 s, button "Pause". Orbit drag of 10 mouse
         moves mid-play: `foldT` rose on every sample (0.145 -> 0.231 -> 0.293 half a second later), button still "Pause".
         Selecting Medium again after Hard: `foldT` 0.007 -> 0.107 in 0.8 s, playing. No console errors.
+- [~] 5.3d Weld the 3D fold and add a shaping phase (spec change, added 2026-11-07, user request; refines R5.1, R5.2)
+      - `collapseFrame` welds every cp vertex shared by faces in the tree (non-tree adjacencies included) to the mean of
+        the positions its faces gave it, and returns `seamErrorMm`, the largest distance a corner moved, plus the unwelded
+        `rigidPositions` (`measureFrame` still measures those). t in [0,1] is the collapse; t in [1,2] takes every folding
+        crease from 180 to 120 degrees together. Slider covers 0 to 2, labelled Collapse and Shape; caption says the pattern
+        specifies the collapse to 180 and Shape is a visualisation, not an encoded state. Facts line reports the seam error
+        per phase and says so when it exceeds 5 mm. `fixtures/turtle-medium.cp.json` is the turtle's Medium pattern.
+      - Observed, turtle Medium, 150 mm, headless Chromium (`next dev`), default "one crease at a time" mode; bbox x,y,z mm / seam mm:
+        t=0 150.0,150.0,0.0 / 0.0; t=0.5 113.1,36.9,8.8 / 28.4; t=1.0 112.1,34.0,0.0 / 0.0; t=1.5 111.4,38.2,64.0 / 42.7;
+        t=2.0 109.2,55.7,106.1 / 60.8. Browser values equal the Node values. Worst over each phase (41 samples): Collapse 81.8 mm
+        (at t=0.1), Shape 60.8 mm (at t=2).
+      - **The 5 mm requirement is not met: 28-61 mm.** Welding closes the gaps by stretching the paper, it does not make a physical
+        fold. The test of the requirement is a `todo` in `collapse.test.ts` (reported, not failing). At t=2 the Z extent is 97% of X,
+        so the volume exists, but most of it is the unclosed loops being pulled together.
+      - t=0.5: no gap between panels (welded by construction); the surface is distorted, not torn. Judged from one screenshot at
+        a small canvas size. Autoplay with no click ran foldT 0 -> 2 in 17.8 s and stopped on Replay. No console errors.
+        Screenshots `tools/out/shape-{0.0,0.5,1.0,1.5,2.0}.png`.
 - [~] 5.0 Product screen `src/app/page.tsx`: empty, processing, result, refusal (and a fault state)
       - Spec change, 2026-11-06 (user request): replaces the relief UI. Deleted `Relief3D.tsx`,
         `src/lib/crease.ts`, `src/lib/db.ts`, `src/app/api/plans/route.ts`; removed dependencies
@@ -593,6 +610,30 @@ Spec change, 2026-11-07 (user request, option 1 approved). R9; design "Hollow mo
         bumpy(1,0.05,4) 27 -> 17, bumpy(1,0.1,7) 37 -> 18. The 80-face nets are not offered, so those residuals are not on screen.
         The 20-face net from two ellipse photographs (taped edges 1, 2, 5): 22 numbers, 0 flagged; "1!" pair and "2!" pair now sit
         apart and read. No before image of that net was kept. Screenshots `tools/out/fix-hollow-net.png`, `fix-icosa-after.png`.
+
+- [~] 9.6 Hollow net folds into the solid in 3D (`src/lib/netfold.ts`, `src/app/NetFoldView.tsx`; spec change, added 2026-11-07,
+      user request; R9.6). Net geometry and tab logic untouched.
+      - `buildNetFold(net, mesh)` takes parents from the net's own non-cut edges (BFS from `net.root`), parents before children;
+        each face keeps its flat polygon, hinge, dihedral and a signed turn of 180 - dihedral. The sign is read from the mesh (which
+        side of the parent's plane the child's far vertex is on), not from winding. If the solid lands on the viewer's side of the
+        sheet every turn is reversed so the printed side is outside. `flat` tree edges are folded by their true dihedral too (up to
+        1 degree), otherwise they would add a gap. `netFoldFrame(fold, t)` composes rigid motions down the tree; `measureNetFold`
+        reports closure gap (both ends of every cut edge), all-copies vertex split, orthonormality, determinant, edge stretch, bbox.
+        `/api/hollow` now returns `fold` and `closureGapMm`. Screen: `NetFoldView.tsx` beside the net (two columns from 900 px),
+        play / pause / scrub, autoplay, orbit only redraws.
+      - Observed, `fixtures/hollow-sample` (4 views), 20 faces, 8 tabs, 3 dropped, 11 cut edges, flip +1. t = 1 closure gap
+        1.2e-13 mm, vertex split 1.5e-13 mm. Bounding box of the faces (tabs not included), x,y,z mm: t=0 164.87 x 181.77 x 0.00;
+        t=0.5 135.80 x 136.89 x 76.45; t=1 91.32 x 101.32 x 67.22. Gap at t=0.25/0.5/0.75: 158 / 112 / 52.5 mm. Rigidity at every
+        t sampled: orthonormality <= 6.7e-16, determinant error <= 6.7e-16, edge stretch <= 3.6e-14 mm. The same values read in the
+        browser. Unit tests (cube, icosahedron, icosphere(1), bumpy(1,0.05,4)) all close below 1e-6 mm; reversing one turn gives a
+        gap above 1 mm, so the check can fail.
+      - Browser (headless Chromium, software GL, so not a GPU figure), autoplay with no click, one play 0 to 1: 1280 px 355 frames in
+        7.10 s; 390 px 358 frames in 5.99 s (nominal 6 s; timing includes the orbit drag and 50 ms polling). Orbit drag of 10 moves mid-play:
+        t kept rising (0.307 -> 0.387, 0.303 -> 0.383), button stayed "Pause". Ends on "Replay". No console errors, overflow 0 px at 1280
+        and 390. Screenshots `tools/out/hollowfold-{0,0.5,1}-{1280,390}.png`. `npm run check`: 173 tests, 172 pass, 0 fail, PASS.
+      - Not done: tabs are not drawn in 3D; the solid is small in the canvas because the camera frames the whole motion, flat net included;
+        only one sample (an elongated, near-convex hull) and convex-ish test meshes, no strongly concave mesh; reduced-motion autoplay
+        off is not tested; touch orbit not exercised. The dev server on :3000 did not see edits on this drive and was restarted.
 
 **Gate, 9 Nov:** 9.1 and 9.2 working, or Hollow mode is parked and the entry ships Fold only. If
 parked, say so plainly and stop; do not carry a half-built mode into December.

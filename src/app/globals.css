@@ -827,6 +827,8 @@ button.upload-label:disabled {
 .fold-view__controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
 .fold-view__slider { display: flex; flex-direction: column; flex: 1 1 200px; font-size: 13px; gap: 2px; }
 .fold-view__slider input { width: 100%; }
+.fold-view__phases { display: flex; font-size: 11px; opacity: 0.85; }
+.fold-view__phases > span { flex: 1 1 50%; text-align: center; }
 .fold-view__status { font-size: 13px; margin: 10px 0 0; }
 .fold-view__link { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }
 .fold-view__facts { font-size: 13px; margin: 8px 0 0; padding-left: 18px; opacity: 0.85; }
@@ -915,4 +917,7 @@ button.upload-label:disabled {
 .hollow-order, .hollow-facts, .hollow-status { max-width: 70ch; }
 .hollow-level { border: 0; padding: 0; margin: 12px 0; display: flex; flex-direction: column; gap: 4px; }
 .hollow-result { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+.hollow-pair { display: grid; grid-template-columns: 1fr; gap: 16px; align-items: start; }
+@media (min-width: 900px) { .hollow-pair { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.hollow-pair__net { margin: 0; min-width: 0; }
 .hollow-net { width: 100%; max-width: 760px; height: auto; background: #fff; border: 1px solid #888; }

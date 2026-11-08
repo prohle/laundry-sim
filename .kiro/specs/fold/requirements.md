@@ -143,6 +143,10 @@ visual hull of 2 to 4 silhouettes (tasks 9.3, 9.4); R9.1–R9.5 take the mesh as
   reason if none succeeds.
 - R9.5 Render the net as SVG: cut lines solid, fold lines dashed, tabs labelled, with a legend, paper
   size and face count.
+- R9.6 Show the net folding into the solid in 3D beside the flat net. Each face is a rigid panel turned about the
+  edge it shares with its parent in the spanning tree, from flat to its dihedral angle, composed down the tree. Report
+  the largest gap between the two ends of every cut edge at the final frame; the net is exact, so it should be near zero.
+  - Spec change, 2026-11-07 (user request). Tabs are not drawn in the 3D view.
 
 ### R7 — Measure
 

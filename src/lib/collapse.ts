@@ -14,11 +14,26 @@
  *   - Corners are stored per face, not per cp vertex: once panels turn, two faces that share a cp vertex
  *     are only at the same place if the pattern closes. `cornerVertex` keeps the cp index so that can be measured.
  *
- * Two modes share one time value t in [0,1]:
- *   "together"  every hinge has progress t.
+ * Two modes share one time value t in [0,2]:
+ *   "together"  every hinge has progress t (t in [0,1]).
  *   "sequence"  hinges with a non-zero target are ordered parents-before-children (breadth first from the
  *               root); hinge r of n has progress clamp(t * n - r, 0, 1). Step k is t = k / n.
+ *
+ * Two phases (spec change, 2026-11-07, user request):
+ *   t in [0,1]  Collapse. Every folding crease goes from 0 to the angle the pattern specifies (180).
+ *   t in [1,2]  Shape. Every folding crease goes from 180 to 120 degrees, together. The pattern does not
+ *               encode this; it is a visualisation of a base being opened.
+ *
+ * Welding (same change): after the rigid panels are placed, every cp vertex is moved to the mean of the
+ * positions its incident faces gave it, so the surface is continuous. `seamErrorMm` is the largest distance
+ * any corner moved. A large value means the rigid panels were far from a real surface and welding is
+ * stretching the paper to hide it; it is reported, not hidden.
  */
+
+export const SHAPE_ANGLE_DEG = 120;
+export const T_MAX = 2;
+/** Largest seam error, in mm, at which welding is still a small correction. */
+export const SEAM_LIMIT_MM = 5;
 
 export interface CollapseCp {
   vertices: [number, number][];
@@ -297,8 +312,12 @@ function axisRotation(a: [number, number, number], d: [number, number, number], 
 }
 
 export interface CollapseFrame {
-  /** Corner positions in mm, 3 per corner, same layout as `model.flat`. Faces outside the tree stay flat. */
+  /** Welded corner positions in mm, 3 per corner, same layout as `model.flat`. Faces outside the tree stay flat. */
   positions: Float32Array;
+  /** The rigid-panel positions before welding. */
+  rigidPositions: Float32Array;
+  /** Largest distance, in mm, any corner moved when welded. */
+  seamErrorMm: number;
   /** One transform per face (null for faces outside the tree). */
   transforms: (Rigid | null)[];
 }
@@ -308,6 +327,9 @@ export function collapseFrame(model: CollapseModel, mode: CollapseMode, t: numbe
   const { flat, faceStart, order, parentHinge } = model;
   const transforms: (Rigid | null)[] = new Array(faceStart.length - 1).fill(null);
   const positions = new Float32Array(flat.length);
+  // Shaping: all folding creases go from full angle toward SHAPE_ANGLE_DEG together.
+  const shape = Math.min(1, Math.max(0, t - 1));
+  const shapeDrop = 1 - SHAPE_ANGLE_DEG / 180;
   // Vertex positions in mm for the axis, taken from any corner that carries the vertex.
   const vertexPos = new Map<number, [number, number, number]>();
   for (let c = 0; c < model.cornerVertex.length; c++) {
@@ -322,7 +344,8 @@ export function collapseFrame(model: CollapseModel, mode: CollapseMode, t: numbe
       const pa = vertexPos.get(h.a)!, pb = vertexPos.get(h.b)!;
       const dx = pb[0] - pa[0], dy = pb[1] - pa[1], len = Math.hypot(dx, dy);
       const p = hingeProgress(model, h, mode, t);
-      const angle = (-h.target * p * Math.PI) / 180;
+      const factor = h.target === 0 ? 0 : p - shape * shapeDrop;
+      const angle = (-h.target * factor * Math.PI) / 180;
       const rot = axisRotation(pa, [dx / len, dy / len, 0], angle);
       const P = transforms[h.parent]!;
       const Rt = apply(P.R, rot.t);
@@ -341,7 +364,63 @@ export function collapseFrame(model: CollapseModel, mode: CollapseMode, t: numbe
     if (transforms[f]) continue;
     for (let c = faceStart[f] * 3; c < faceStart[f + 1] * 3; c++) positions[c] = flat[c];
   }
-  return { positions, transforms };
+  const rigidPositions = positions.slice();
+  const seamErrorMm = weld(model, positions);
+  return { positions, rigidPositions, seamErrorMm, transforms };
+}
+
+/** Corners grouped by cp vertex, for faces in the tree. Built once per model. */
+const weldCache = new WeakMap<CollapseModel, number[][]>();
+function weldGroups(model: CollapseModel): number[][] {
+  let g = weldCache.get(model);
+  if (g) return g;
+  const inTree = new Set(model.order);
+  const by = new Map<number, number[]>();
+  for (let f = 0; f < model.faceStart.length - 1; f++) {
+    if (!inTree.has(f)) continue;
+    for (let c = model.faceStart[f]; c < model.faceStart[f + 1]; c++) {
+      const v = model.cornerVertex[c];
+      const l = by.get(v);
+      if (l) l.push(c); else by.set(v, [c]);
+    }
+  }
+  g = [...by.values()].filter((l) => l.length > 1);
+  weldCache.set(model, g);
+  return g;
+}
+
+/** Replace every group of corners that share a cp vertex by their mean, in place. Returns the largest move in mm. */
+function weld(model: CollapseModel, positions: Float32Array): number {
+  let worst = 0;
+  for (const l of weldGroups(model)) {
+    let x = 0, y = 0, z = 0;
+    for (const c of l) { x += positions[c * 3]; y += positions[c * 3 + 1]; z += positions[c * 3 + 2]; }
+    x /= l.length; y /= l.length; z /= l.length;
+    for (const c of l) {
+      worst = Math.max(worst, Math.hypot(positions[c * 3] - x, positions[c * 3 + 1] - y, positions[c * 3 + 2] - z));
+      positions[c * 3] = x; positions[c * 3 + 1] = y; positions[c * 3 + 2] = z;
+    }
+  }
+  return worst;
+}
+
+export interface SeamProfile {
+  collapse: { maxMm: number; atT: number };
+  shape: { maxMm: number; atT: number };
+}
+
+/** Largest seam error per phase over `samples` evenly spaced times in each phase (ends included). */
+export function seamProfile(model: CollapseModel, mode: CollapseMode, samples = 41): SeamProfile {
+  const run = (t0: number) => {
+    let maxMm = 0, atT = t0;
+    for (let i = 0; i < samples; i++) {
+      const t = t0 + i / (samples - 1);
+      const e = collapseFrame(model, mode, t).seamErrorMm;
+      if (e > maxMm) { maxMm = e; atT = t; }
+    }
+    return { maxMm, atT };
+  };
+  return { collapse: run(0), shape: run(1) };
 }
 
 export interface FrameMeasure {
@@ -361,7 +440,7 @@ export interface FrameMeasure {
 
 export function measureFrame(model: CollapseModel, frame: CollapseFrame): FrameMeasure {
   const { flat, faceStart, order, cornerVertex } = model;
-  const positions = frame.positions;
+  const positions = frame.rigidPositions;
   let stretch = 0, ortho = 0, det = 0;
   for (const f of order) {
     const R = frame.transforms[f]!.R;
