@@ -11,7 +11,7 @@ Ordered. Each task leaves the repo runnable. One task per turn. Verify with
 - [x] 1.2 `sim/scene.py` + a minimal `sim/run.py`: cabinet, shelf, garment, two cameras; load, step,
       render one frame. MJCF built as a string.
       Acceptance: `sim/.venv/bin/python sim/run.py --frames 1` writes `sim/out/frame.png`, no NaN.
-- [ ] 1.3 `sim/check.py`: R1-R3 assertions; exit non-zero with the failing assertion named.
+- [x] 1.3 `sim/check.py`: R1-R3 assertions; exit non-zero with the failing assertion named.
       Acceptance: passes on a clean checkout; fails if the cabinet is removed from the scene.
 - [x] 1.2b Gravity on and the towel resting on the shelf; top camera inside the cabinet.
       Acceptance: after 200 steps the towel z-range is 0.56-0.60, no NaN, both cameras render.
@@ -20,7 +20,7 @@ Ordered. Each task leaves the repo runnable. One task per turn. Verify with
 
 ## Phase 2 — The fold works (11–14 Nov)
 
-- [ ] 2.1 Two arms with grippers in `sim/scene.py`, position servos, mirrored mounts.
+- [x] 2.1 Two arms with grippers in `sim/scene.py`, position servos, mirrored mounts.
 - [ ] 2.2 `sim/fold.py`: keyframed trajectory, weld grasp to two corners.
       Acceptance: prints `FOLDED` with the extent before/after, exit 0.
 - [ ] 2.3 Fold check in `sim/check.py`: extent ratio and overlap, both printed.

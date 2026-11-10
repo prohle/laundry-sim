@@ -10,6 +10,7 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import arms
 import garment
 import scene
 
@@ -20,6 +21,7 @@ def main():
     ap.add_argument("--camera", choices=["inside", "top"], default="inside")
     ap.add_argument("--garment", choices=["towel", "tee"], default="towel")
     ap.add_argument("--out", default="sim/out/frame.png")
+    ap.add_argument("--arms", choices=["ready", "zero"], default="ready")
     ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
 
@@ -34,6 +36,10 @@ def main():
     mujoco.mj_forward(model, data)
     z0 = np.array(data.flexvert_xpos)[:, 2]
     print(f"z-range before settling: [{z0.min():.3f}, {z0.max():.3f}]")
+    if a.arms == "ready":
+        ctrl, cs = arms.ready_pose(model, data, a.garment)
+        arms.apply(model, data, ctrl)
+        print("ready pose (rad):", {k: round(v, 3) for k, v in ctrl.items() if not k.endswith("grip")})
     steps = 200  # settle
     for _ in range(steps):
         mujoco.mj_step(model, data)
@@ -42,6 +48,10 @@ def main():
     if np.isnan(pos).any():
         print("FAIL: NaN in flexvert_xpos")
         return 1
+
+    if a.arms == "ready":
+        for side, c in zip(arms.SIDES, cs):
+            print(f"arm_{side}: pinch-to-corner {np.linalg.norm(arms.pinch(model, data, side) - c):.3f} m")
 
     r = mujoco.Renderer(model, height=720, width=1280)
     r.update_scene(data, camera=a.camera)

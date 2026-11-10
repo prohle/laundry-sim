@@ -6,6 +6,7 @@ Shelf top at z = 0.56. Garment is generated in XZ and rotated flat onto the shel
 import math
 import os
 
+import arms
 import garment as G
 
 W, D, H, T = 0.80, 0.60, 1.10, 0.02
@@ -41,12 +42,24 @@ def _box(name, cx, cy, cz, sx, sy, sz, rgba, contact=0):
             f'rgba="{rgba}" contype="{contact}" conaffinity="{contact}"/>')
 
 
-def build(obj, kind="towel"):
+def _offset(kind):
     verts, _, _ = G.build(kind)
     xs, zs = [v[0] for v in verts], [v[2] for v in verts]
     mx, mz = (min(xs) + max(xs)) / 2, (min(zs) + max(zs)) / 2
     # After the rotation local (x, 0, z) -> world (x, z, 0): centre the mesh on the shelf.
-    pos = (CX - mx, CY - mz, SHELF_Z + SHELF_T / 2 + 0.005)
+    return CX - mx, CY - mz
+
+
+def corners_xy(kind="towel"):
+    """World (x, y) of the two pin vertices (left, right) as laid on the shelf."""
+    verts, _, pins = G.build(kind)
+    ox, oy = _offset(kind)
+    return [(ox + verts[i][0], oy + verts[i][2]) for i in pins]
+
+
+def build(obj, kind="towel"):
+    ox, oy = _offset(kind)
+    pos = (ox, oy, SHELF_Z + SHELF_T / 2 + 0.005)
     mass = G.DEFAULTS[kind]["mass"]
     c = "0.78 0.78 0.80 1"
     geoms = [
@@ -69,11 +82,14 @@ def build(obj, kind="towel"):
     <geom name="floor" type="plane" size="2 2 0.1" rgba="0.25 0.25 0.27 1" contype="0" conaffinity="0"/>
     {chr(10).join("    " + g for g in geoms).strip()}
     {cams}
+    {arms.worldbody_xml().strip()}
     <flexcomp name="garment" type="mesh" file="{os.path.abspath(obj)}" dim="2" pos="{pos[0]:.4f} {pos[1]:.4f} {pos[2]:.4f}" quat="0.7071 -0.7071 0 0" mass="{mass}" radius="0.003" rgba="0.2 0.45 0.8 1">
       <edge equality="true"/>
       <contact contype="1" conaffinity="1" condim="3" friction="0.8 0.02 0.001"/>
     </flexcomp>
   </worldbody>
+  {arms.equality_xml()}
+  {arms.actuator_xml()}
 </mujoco>
 """
 

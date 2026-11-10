@@ -33,9 +33,13 @@ sim/
 
 ## Grasp
 
-Version 1 uses a **weld/pin constraint** from the gripper to two garment vertices. This is a
-deliberate simplification: it isolates the fold geometry from contact tuning. Version 2 replaces it
-with friction contact and reports the difference — that difference is itself a result.
+Version 1 uses a **kinematic grasp**: after each step, the two grasped garment vertices are moved to
+the gripper's pinch point. This is deliberate — it isolates the fold geometry from contact tuning, and
+it is stated as a simplification, not hidden.
+
+Version 2 replaces it with a friction grasp (two pads, `condim=6`, high friction) and reports the
+difference. That difference is itself a result: *"kinematic grasp 10/10; friction grasp 6/10; the gap
+is the contact model."*
 
 ## Fold check (R4)
 
