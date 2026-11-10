@@ -21,7 +21,7 @@ import garment
 
 ALPHA = 0.35          # fraction of the remaining distance closed per step
 MAX_STEP = 0.02       # per-step cap on a grasped vertex, metres
-GRASP_RADIUS = 0.12   # vertices within this xy distance of a corner are held (corner row only)
+GRASP_RADIUS = 0.16   # vertices within this xy distance of a corner are held (corner row only)
 Z_LIFT, Z_DOWN = 0.66, 0.62  # base at y=-0.08: lifting higher (0.72-0.85) pushes 'upper' past -2.4 during the carry; 0.66 is the lowest lift that clears
 INWARD = 0.12         # both pinch points move this far toward the cabinet centre after the lift and stay there through release (adjustment needed: lifting higher failed)
 Y_FOLD = -0.05        # pinch y at the far side; the towel spans y -0.15..0.25, so 0.18 would not fold it. -0.10 is past the elbow limit

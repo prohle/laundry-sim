@@ -74,11 +74,16 @@ target y and the lift height. A controller, not RL — stated as such.
       Acceptance: the held-out table is printed and compared to the 32/50 baseline; the result is
       reported as it comes out.
 
-- [ ] 4.5 Grasp patch 0.12 -> 0.16 m: reduce sag and close the depth gap.
+- [x] 4.5 Grasp patch 0.12 -> 0.16 m: 50/50 on seeds 6-10 (14 distinct drops), up from 32/50.
       The held patch is the cloth the kinematic grasp carries. A wider patch drags more of the front
       edge, so the fold should be tighter and the final depth smaller.
       Acceptance: the held-out table (seeds 6-10) is printed and compared to 32/50. If it does not
       beat 32/50, report it and stop the mechanism search.
+
+- [ ] 4.6 Clean test on fresh seeds 11-20.
+      Seeds 6-10 were used to find the patch fix, so they are no longer held-out. Run both configs
+      (patch 0.12 and 0.16) on seeds 11-20, 10 runs each, and report the table. Do not tune anything.
+      Acceptance: both success rates printed, distinct-drop count stated, written to `sim/out/clean.md`.
 
 ## Phase 5 — Show it (22–28 Nov)
 
