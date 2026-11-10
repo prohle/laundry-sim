@@ -145,8 +145,31 @@ def main():
                     help="scripted: absolute fold target; relative: fold_target_y = mean(y_l, y_r) - D. Given, baseline.md is not written")
     ap.add_argument("--D", type=float, default=None, help=f"relative policy depth, default {D_CHOSEN}")
     ap.add_argument("--experiment", action="store_true", help="4.2/4.3: fit D on seeds 1-5, test on seeds 6-10, write out/policy.md")
+    ap.add_argument("--clean", action="store_true", help="4.6: scripted, patch 0.12 and 0.16, seeds 11-20 x 10 runs, write out/clean.md")
     a = ap.parse_args()
     out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "out")
+    if a.clean:
+        used = {s + i for s in TEST_SEEDS for i in range(10)}   # rng seeds already drawn in the seeds 6-10 runs
+        L = [f"Simulated towel fold, scripted policy, no tuning. Seeds 11-20 x 10 runs per config, {time.strftime('%Y-%m-%d')}.",
+             "Run i of seed s draws its drop from rng seed s+i, so seeds overlap. Yaw 0, position only.", ""]
+        res = {}
+        with tempfile.TemporaryDirectory() as tmp:
+            for rad in (0.12, 0.16):
+                fold.GRASP_RADIUS = rad
+                res[rad] = [(s + r["run"], r) for s in range(11, 21) for r in evaluate(10, s, tmp)]
+        for rad, rr in res.items():
+            rows = [r for _, r in rr]
+            dist = {(round(r["dx"], 9), round(r["dy"], 9)) for r in rows}
+            fresh = [r for k, r in rr if k not in used]
+            fdist = {(round(r["dx"], 9), round(r["dy"], 9)) for r in fresh}
+            L += [f"Patch {rad:.2f} m", "```", HEADER] + [f"s{k:<2} " + fmt(r) for k, r in rr] + ["", summary(rows),
+                  f"distinct drops: {len(dist)} of {len(rows)} runs",
+                  f"drops never drawn in seeds 6-10 (rng seed >= 20): {len(fdist)} distinct, {len(fresh)} runs, folded {nfolded(fresh)}/{len(fresh)}", "```", ""]
+        L.append("Simulated, not a physical fold. Wrinkle is a proxy.")
+        os.makedirs(out, exist_ok=True)
+        open(os.path.join(out, "clean.md"), "w").write("\n".join(L) + "\n")
+        print("\n".join(L))
+        return 0
     if a.experiment:
         t0 = time.time()
         with tempfile.TemporaryDirectory() as tmp:

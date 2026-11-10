@@ -80,7 +80,7 @@ target y and the lift height. A controller, not RL — stated as such.
       Acceptance: the held-out table (seeds 6-10) is printed and compared to 32/50. If it does not
       beat 32/50, report it and stop the mechanism search.
 
-- [ ] 4.6 Clean test on fresh seeds 11-20.
+- [x] 4.6 Clean test: patch 0.16 55/55 vs 0.12 35/55 on 10 unseen drops.
       Seeds 6-10 were used to find the patch fix, so they are no longer held-out. Run both configs
       (patch 0.12 and 0.16) on seeds 11-20, 10 runs each, and report the table. Do not tune anything.
       Acceptance: both success rates printed, distinct-drop count stated, written to `sim/out/clean.md`.
