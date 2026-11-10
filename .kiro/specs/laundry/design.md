@@ -68,3 +68,10 @@ the same trajectories and the same numbers.
 
 The simulator is the instrument. The claim is "a policy folds a simulated garment", never "a machine
 folds laundry". R7 is checked in review, not in code.
+
+## Flex qpos (learned 2026-11-09)
+
+A flex vertex's DOFs are **not** at `3 * (flex_vertadr + i)`. The arms own the first 12 qpos entries,
+so the offset is `jnt_qposadr(first flex body) + 3 * (vertadr + i)` — here `12 + 3 * i`. The value is a
+**displacement from the vertex reference position**, not a world position, so a kinematic grasp pulls
+toward `target - ref`. Verified by nudging one entry and watching `flexvert_xpos`.

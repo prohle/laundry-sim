@@ -21,7 +21,7 @@ Ordered. Each task leaves the repo runnable. One task per turn. Verify with
 ## Phase 2 — The fold works (11–14 Nov)
 
 - [x] 2.1 Two arms with grippers in `sim/scene.py`, position servos, mirrored mounts.
-- [ ] 2.2 `sim/fold.py`: keyframed trajectory, weld grasp to two corners.
+- [x] 2.2 `sim/fold.py`: keyframed trajectory, weld grasp to two corners.
       Acceptance: prints `FOLDED` with the extent before/after, exit 0.
 - [ ] 2.3 Fold check in `sim/check.py`: extent ratio and overlap, both printed.
 - [ ] 2.4 Render the fold: 120 frames to `sim/out/fold.mp4`, one take, no cuts.

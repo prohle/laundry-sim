@@ -11,6 +11,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import arms
+import fold
 import garment
 import scene
 
@@ -125,10 +126,18 @@ def c_arms_ready():
         assert p[2] > 0.58, f"arm_{s} pinch z {p[2]:.3f} <= 0.58"
 
 
+def c_fold_folded():
+    r = fold.run(model())
+    msg = f"ratio {r['ratio']:.2f} (<= {fold.RATIO_MAX}), overlap {r['overlap']:.2f} (>= {fold.OVERLAP_MIN}), nan {r['nan']}"
+    assert r["folded"], msg
+    print(f"      {msg}, y-extent {r['before']:.3f} -> {r['after']:.3f}")
+
+
 CHECKS = [("garment-towel", lambda: garment_ok("towel")), ("garment-tee", c_tee),
           ("scene-loads", c_scene_loads), ("scene-parts", c_scene_parts),
           ("garment-on-shelf", c_on_shelf), ("render", c_render), ("deterministic", c_deterministic),
-          ("arms-present", c_arms_present), ("arms-ready", c_arms_ready)]
+          ("arms-present", c_arms_present), ("arms-ready", c_arms_ready),
+          ("fold-folded", c_fold_folded)]
 
 
 def main():
