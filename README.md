@@ -1,164 +1,93 @@
-# Fold
+# Laundry
 
-Fold takes a photograph of an object with distinct protrusions on a plain background, derives a
-stick-figure tree of those protrusions, and produces an origami crease pattern for one square of paper. It tells you the
-smallest complexity tier that can hold the subject before you print, and it refuses when it cannot
-produce a pattern with a mountain/valley assignment.
+A simulated laundry-folding cabinet: two arms, a garment, and an evaluation harness that decides
+whether the fold worked. It revives the **Laundroid** — the $16,000 folding machine that was
+demonstrated, pre-ordered and bankrupted in 2019 — as software.
 
-> A photograph becomes a foldable crease pattern, at the complexity you choose.
+> A policy folds a simulated garment, measured over seeded runs. The machine was never built.
 
-Category: Frankenstein. Supported class: objects with distinct protrusions on a plain background, one
-square, no cuts. In practice four to six flaps: on the three animal fixtures, Medium (six flaps)
-is the only tier that folds. Hard and Expert are attempted and refused, with the reason shown.
+Category: **Resurrection**, Kiroween 2026. Built with Kiro.
 
-Protrusions are necessary, not sufficient. A side-view ship has four of them, passes every check,
-and folds into a generic base: a ship and a dog have the same tree topology, so the pipeline cannot
-tell them apart. The app reports the pattern's coverage of the sheet and shows the 3D base before
-anything is printed; it does not claim to judge whether that base resembles the subject.
+## The claim, precisely
 
-## The chimera
-
-- A camera (2026): the input is a photograph.
-- Tree theory (1970s): origami design reduced to packing a stick figure into a square.
-- TreeMaker (2006): the research program that does the packing. It is abandoned C++ that does not
-  build on a modern system without effort. We use its Rust port, `treemaker-core`.
-- A sheet of paper: the output is something you print and fold.
-
-Each piece is from a different decade and none was meant to meet the others. The photograph
-becomes the paper, and the output leaves the screen.
-
-Hollow mode swaps tree theory for computational geometry: a camera, computational geometry,
-TreeMaker, and paper, with two routes from a photograph to a physical sheet. Fold packs a stick
-figure into one square and folds flat. Hollow turns a mesh into a net that is cut, folded and glued
-into a closed volume. It cuts, so it is not origami and is never described as origami. Both modes
-are photograph-to-paper; this is one product, not two.
+- The fold is **simulated** in MuJoCo. There is no physical machine and no physical fold.
+- A fold counts only when three geometric checks pass: width preserved, depth halved, moved half on
+  top. A heap fails all three.
+- Every number below comes from `sim/eval.py`, is seeded, and reproduces.
 
 ## What it does
 
-1. You upload one PNG or JPEG (up to 10 MiB).
-2. The photograph is thresholded to a silhouette and thinned to a skeleton. The significance
-   threshold is not fixed: thirteen candidate trees are extracted and each is scored by how well
-   its protrusions explain the silhouette, minus a penalty per leaf. The best-scoring tree is drawn
-   over your photograph. No human chooses per image.
-3. The minimum tier is computed from the number of significant flaps and shown with the reason:
-   Easy 4, Medium 6, Hard 8, Expert 12 flaps. Below the minimum, the tier is not offered. Every
-   higher tier is also attempted, and the ladder offers only the tiers that fold; a tier the solver
-   cannot pack, or whose pattern does not lie flat, is shown as unavailable with its reason.
-4. The tree is passed to the TreeMaker port, which packs it into the square and builds the crease
-   pattern. The mountain/valley assignment is computed by the solver, not by us.
-5. The pattern is returned as a printable SVG at a stated paper size, with a legend.
-
-If the solver does not produce a full mountain/valley assignment, no pattern is shown. The
-beetle fixture is that case.
+1. `sim/garment.py` generates a towel or a T-shirt from parameters — no downloaded meshes.
+2. `sim/scene.py` builds the cabinet, shelf, two actuated arms and cameras as MJCF.
+3. `sim/fold.py` runs the scripted fold: grasp two front corners, lift, carry back, lower, release.
+4. `sim/check.py` runs 13 checks in about 50 s; a Kiro hook runs it after every write.
+5. `sim/eval.py` runs N seeded drops and reports a table.
+6. `sim/video.py` renders the fold to 1280x720, 120 frames, 4.0 s.
 
 ## What is measured
 
-All figures below are from runs in this repository. Conditions are stated.
+Held-out drops, position randomised ±0.04 m, yaw fixed at 0. `patch` is the radius of cloth carried by
+the kinematic grasp.
 
-- Solver parity: scale matches the C++ TreeMaker reference output on 3 of 3 example models, with
-  differences of 0.000000 at six decimals (0.517637, 0.074658, 0.056381). Enforced by
-  `solver/tests/parity.rs`. Crease patterns build on four of the five shipped example models; the
-  fifth fails with `polygon inset distance was not found`, and the test asserts that failure.
-  A vertex-and-edge diff of a crease pattern against a published one has not been done: the
-  reference output contains no vertex or edge data.
-- Three subjects pass without human help, each at 6 leaves and Medium, each with a full
-  mountain/valley assignment and every interior vertex locally flat-foldable:
+| config | all runs | success | unseen drops only |
+|---|---|---|---|
+| patch 0.12 m | 100 | 70/100 | **35/55** (10 distinct) |
+| patch 0.16 m | 100 | **100/100** | **55/55** (10 distinct) |
 
-  | Fixture | Threshold chosen | Vertices / creases | Largest Kawasaki residual | Time |
-  |---|---|---|---|---|
-  | bush dog | 2.75 | 55 / 108 | 1.08e-5 rad | 2.1 s |
-  | snapping turtle | 1.75 | 46 / 91 | 1.50e-7 rad | 3.6 s |
-  | tuatara | 3.75 | 54 / 107 | 3.14e-5 rad | 3.7 s |
+- Depth after the fold: 0.49–0.59 against a 0.60 threshold. Width: 0.91–0.98 against 0.90.
+- Mean simulated time 2.8 s. Mean wrinkle 0.018 (0.012 at patch 0.12) — a proxy, not a measurement.
+- **The 100 runs are 19 distinct drops**, because run `i` of seed `s` draws from `rng(s+i)` and the
+  seeds overlap. The 55 unseen runs are 10 distinct drops. That is the honest sample size.
+- The patch fix was found on seeds 6–10, so those seeds are not held-out for it. Seeds 11–20 were run
+  afterwards and the 10 drops never drawn before are reported separately.
 
-- Local flat-foldability is checked at every interior vertex: 0 Maekawa failures on all three,
-  and 0 Kawasaki failures at a tolerance of 5e-5 rad (0.003 degrees). The tolerance was raised
-  from 2e-5 after the tuatara missed by 1.1e-5 rad. We read the residuals as the optimiser
-  stopping short of exact convergence. These checks are necessary, not sufficient: global
-  foldability and the folded-state count are not computed. Since 2026-11-08 a Maekawa failure is
-  fatal and a Kawasaki failure is a printed warning carrying its residual in millimetres: a
-  subject that solved is never withheld for a numerical residual smaller than the paper.
-- End to end: 2.1 to 3.7 s, of which 1.5 to 2.9 s is the selection sweep over 13 candidate trees.
-  The requirement is 20 s.
-- Tests: 77 Node tests and 10 Rust tests pass (`npm test`, `cargo test --release` in `solver`).
+## Negative results, kept
+
+- **3 cm more forearm: 0/50.** The upper joint hits its −2.4 rad limit at the carry target on every
+  run. A longer forearm must fold the upper link further back, so it trades reach for a singularity.
+- **A relative fold target, fitted on seeds 1–5: 32/50 on seeds 6–10, identical to the scripted
+  baseline.** The limit was the machine's geometry, not the policy.
+
+Both are in `sim/out/`. They are the reason the patch fix was the one that worked: the failure was
+sag between the grippers, not reach.
 
 ## Limits
 
-- Supported class: objects with distinct protrusions on a plain background. Three fixtures pass without
-  human help: the bush dog, the snapping turtle and the tuatara, each at 6 leaves and Medium. A
-  fourth, the beetle, is refused.
-- The selection constant (lambda = 0.03) is fitted to four images. A single value satisfies all
-  four fixtures only between 0.0217 and 0.037, a window a factor of 1.7 wide. Below it the dog
-  jumps to 14 leaves and the turtle to 9; above it the turtle collapses to 2. Treat it as fitted,
-  not derived, and expect it to need revisiting on subjects unlike these.
-- The beetle is refused at the tier stage: the sweep gives it 15 leaves, the largest tier allows
-  12, and the design says a beetle needs about ten. The overcount is probably spurs on the
-  wing-case edge, so the refusal is right for the wrong reason.
-- A curled limb is measured by its path where the tree is spliced, but each extracted edge is
-  still a chord between skeleton nodes, so a bend inside one edge is cut. The tuatara tail was
-  27% short when measured by chord alone (162 px against 221 px of path).
-- The beetle is refused: the tree has 8 leaves, which the tier rule calls Hard, and the solver
-  returns a pattern with no mountain/valley assignment. The design says a beetle needs ten flaps;
-  the antennae are lost at the mask, so the minimum tier shown for it is too low.
-- The pattern covers the packing polygon, not the whole sheet. On the dog the faces cover 0.8438
-  of the unit square.
-- The simulation does not fold our patterns. In Origami Simulator the dog pattern loads and
-  collapses to a thin wedge with faces passing through each other. We tried fold angles and a
-  swapped mountain/valley mapping; neither helped. TreeMaker's own full-square example (model 5,
-  faces covering 0.999999 of the sheet) fails the same way. We could not determine whether the
-  fault is in our FOLD export or in how we drive the simulator. No paper model has been folded
-  from a Fold pattern yet, so we do not claim one reads as the animal.
-- No cuts. A cut would break the single-square assumption the packing relies on.
-- Four to six flaps in practice. The tiers are defined up to twelve, but Hard (8) and Expert (12)
-  did not fold on any of the three fixtures (dog, turtle, tuatara); only Medium did. Anything the
-  solver cannot pack into a flat-foldable pattern is refused.
-- The photograph is uploaded to a server, processed in memory and discarded. It does not stay on
-  the device.
-- The printed sheet has a legend and paper size. It does not yet state a step count or time
-  estimate, and the step and time figures shown for each tier are estimates, not measured.
+- **Simulated only.** No machine, no fabric, no physical proof.
+- **One garment, one fold.** A 0.70 x 0.40 m towel, folded in half along its depth. The T-shirt
+  generator exists but is not folded.
+- **Kinematic grasp.** The held cloth is moved to the gripper, not gripped by friction. A friction
+  grasp is the next experiment; the gap between them is the interesting number.
+- **10 independent drops.** The 100% is real but the sample is small, and the README says so.
+- **Wrinkle is a proxy** (mean edge strain), not a measurement of appearance.
+- **Yaw is fixed at 0** for the baseline. A rotated garment needs a rotated-frame corner detector
+  (task 3.6, unbuilt).
 
 ## How to run
 
-Needs Node 24 (the scripts run `.ts` directly) and a Rust toolchain.
-
 ```
-npm install
-cd solver && cargo build --release && cd ..
-npm run dev
-```
-
-The app finds the solver at `solver/target/release/fold-solver`, or at `FOLD_SOLVER` if set.
-Open http://localhost:3000. To run one fixture from the command line:
-`node tools/pipeline.ts fixtures/bush-dog.png`.
-
-Docker:
-
-```
-docker build -t fold .
-docker run --rm -p 3000:3000 fold
+cd sim
+.venv/bin/python check.py                 # 13 checks, ~50 s
+.venv/bin/python eval.py --runs 10 --seed 11
+.venv/bin/python fold.py                  # one nominal fold, FOLDED
+.venv/bin/python video.py                 # sim/out/fold.mp4
 ```
 
-The image builds the solver with cargo, builds the app, and runs the standalone Next server. No public URL is deployed yet.
+Needs Python 3.12, MuJoCo 4.0, NumPy, Pillow and `ffmpeg`. The venv is `sim/.venv` (gitignored).
+
+## How Kiro was used
+
+`.kiro/specs/laundry/` holds requirements, design and tasks. `.kiro/steering/` holds the product
+claims and the credit rules. `.kiro/agents/sim-builder.json` defines the agent, a write hook that runs
+the check, and the `sim-tools` MCP server. Full writeup in `docs/kiro-usage.md`.
 
 ## Prior work
 
-No pre-existing application code. Built during the submission period. This repository's history
-contains two earlier attempts from the same period (a relief generator and a slicing generator);
-both were retired before the origami pipeline was written and their code was deleted.
+This repository's history contains an earlier attempt built during the same submission period (Fold, a
+photo-to-origami pipeline, retired 2026-11-09). All work in it was created after 30 October 2026. The
+entry is the product described above.
 
-- Dependencies: Next.js, React, `jpeg-js`, `pngjs`, TypeScript; Rust crate `treemaker-core` 0.1.0.
-- TreeMaker by Robert J. Lang is GPL. We use its Rust port `treemaker-core`
-  (GPL-2.0-or-later) in `solver/` (`fold-solver`, also GPL-2.0-or-later). The five `.tmd5`
-  example models and the reference output in `solver/fixtures/` are from the TreeMaker 5 source;
-  provenance is in `solver/fixtures/README.md`.
-- Origami Simulator (MIT, Amanda Ghassaei) was used as an external check on the hosted site. It is
-  not shipped or vendored.
-- TreeFaker was evaluated and removed; it has no licence.
-- Fixtures are in `fixtures/`. The beetle and bush dog are CC0; the snapping turtle is
-  public domain (Flickr Public Domain Mark); the tuatara is public domain (uploader's
-  declaration). The bush dog and tuatara are cut-outs, and the bush dog is tagged as AI-modified
-  on Commons. Sources, authors and hashes are in `fixtures/README.md`.
-
-How Kiro was used is in `docs/kiro-usage.md`.
+Dependencies: MuJoCo (Apache-2.0), NumPy, Pillow, ffmpeg. No third-party meshes, textures or assets.
 
 ## Licence
 
