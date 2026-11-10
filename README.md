@@ -6,6 +6,9 @@ demonstrated, pre-ordered and bankrupted in 2019 — as software.
 
 > A policy folds a simulated garment, measured over seeded runs. The machine was never built.
 
+**Live page:** https://prohle.github.io/laundry-sim/
+**Repo:** https://github.com/prohle/laundry-sim
+
 Category: **Resurrection**, Kiroween 2026. Built with Kiro.
 
 ## The claim, precisely
@@ -20,7 +23,8 @@ Category: **Resurrection**, Kiroween 2026. Built with Kiro.
 1. `sim/garment.py` generates a towel or a T-shirt from parameters — no downloaded meshes.
 2. `sim/scene.py` builds the cabinet, shelf, two actuated arms and cameras as MJCF.
 3. `sim/fold.py` runs the scripted fold: grasp two front corners, lift, carry back, lower, release.
-4. `sim/check.py` runs 13 checks in about 50 s; a Kiro hook runs it after every write.
+4. `sim/check.py` runs 16 checks in about 85 s; a Kiro hook runs it after every write.
+   `sim/test_props.py` runs five Hypothesis properties (66 examples).
 5. `sim/eval.py` runs N seeded drops and reports a table.
 6. `sim/video.py` renders the fold to 1280x720, 120 frames, 4.0 s.
 
@@ -72,7 +76,8 @@ finds them after the tooling is paid for.
 
 ```
 cd sim
-.venv/bin/python check.py                 # 13 checks, ~50 s
+.venv/bin/python check.py                 # 16 checks, ~85 s
+.venv/bin/python test_props.py            # 5 Hypothesis properties
 .venv/bin/python eval.py --runs 10 --seed 11
 .venv/bin/python fold.py                  # one nominal fold, FOLDED
 .venv/bin/python video.py                 # sim/out/fold.mp4

@@ -118,7 +118,7 @@ target y and the lift height. A controller, not RL — stated as such.
       result toggle, limits, run instructions, Kiro, footer). Rename the package. No Fold references.
       Acceptance: `npm run build` exits 0; the page returns 200 and contains "simulated" and "55/55".
 
-- [ ] 5.10 Static export + GitHub Pages workflow, so the page has a live URL.
+- [x] 5.10 Static export + GitHub Pages workflow, so the page has a live URL.
       Acceptance: `STATIC_EXPORT=1 NEXT_PUBLIC_BASE_PATH=/laundry-sim npm run build` writes `out/`
       with the video and `_next` under `/laundry-sim/`; the default build still succeeds.
 
@@ -127,4 +127,5 @@ target y and the lift height. A controller, not RL — stated as such.
 - [ ] 6.1 MCP server `sim-tools`: `run_episode`, `eval_suite`, `render_clip`.
 - [ ] 6.2 Hook: run `sim/check.py` after any write under `sim/`.
 - [ ] 6.3 Steering: no fold claim without the check; no asset without a licence.
-- [ ] 6.4 Property tests: vertex count, no NaN, extent monotonicity under the fold.
+- [x] 6.4 Property tests (Hypothesis): vertex count, single component, no NaN, extent monotonicity,
+      determinism. Run by `sim/test_props.py`.

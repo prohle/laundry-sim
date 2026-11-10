@@ -181,12 +181,19 @@ def c_corners_front():
         assert sep > 0.6, f"drop ({dx}, {dy}): separation {sep:.3f} m (limit 0.6)"
 
 
+def c_props():
+    import subprocess
+    r = subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_props.py")],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, "test_props.py failed: " + " | ".join(l for l in r.stdout.splitlines() if l.startswith("FAIL")) + r.stderr[-200:]
+
+
 CHECKS = [("garment-towel", lambda: garment_ok("towel")), ("garment-tee", c_tee),
           ("garments-all", c_garments_all), ("scene-loads", c_scene_loads), ("scene-parts", c_scene_parts),
           ("garment-on-shelf", c_on_shelf), ("render", c_render), ("deterministic", c_deterministic),
           ("arms-present", c_arms_present), ("arms-ready", c_arms_ready),
           ("fold-folded", c_fold_folded), ("fold-program", c_fold_program_matches), ("corners-front", c_corners_front), ("eval-reproducible", c_eval_reproducible),
-          ("policy-reproducible", c_policy_reproducible)]
+          ("policy-reproducible", c_policy_reproducible), ("props", c_props)]
 
 
 def main():

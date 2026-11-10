@@ -67,13 +67,20 @@ has no NaN.
 
 ## Testing
 
-`sim/check.py` runs 13 checks in about 50 s: garment generation, scene parts, the cloth resting on the
+`sim/check.py` runs 16 checks in about 85 s: garment generation, scene parts, the cloth resting on the
 shelf, a render that is not a flat colour, determinism, the arms, the ready pose, corner detection,
-the fold, and two reproducibility checks.
+the fold, two reproducibility checks, and a subprocess run of the property tests.
 
-There is **no property-based testing library** in this repository. The checks are example-based, and
-this document says so rather than implying otherwise. Property tests over the cloth invariants
-(vertex count, no NaN, energy bounds) are listed as task 6.4 and are not built.
+`sim/test_props.py` uses **Hypothesis** for five properties, 66 examples in about 25 s:
+
+- garment vertex count and no degenerate triangle, over five kinds and a swept cell size;
+- one connected component per generated mesh;
+- no NaN and a bounded z-range after 50 steps, over 20 seeds;
+- the fold's y-extent never increases between consecutive samples;
+- the same seed gives the same extents to 1e-9.
+
+The two full-fold properties are capped at three seeds because each run is about four seconds. That
+cap is in the file, not hidden.
 
 ## Credit accounting
 
