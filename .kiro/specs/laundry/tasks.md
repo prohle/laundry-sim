@@ -114,9 +114,13 @@ target y and the lift height. A controller, not RL — stated as such.
       unseen drops, or the multi-garment claim is dropped.
 - [ ] 5.7 Pants and shorts programs, only if 5.6 passes.
 
-- [~] 5.9 Live page: replace the retired Fold Next.js page with a Laundry product page (hero video,
+- [x] 5.9 Live page: replace the retired Fold Next.js page with a Laundry product page (hero video,
       result toggle, limits, run instructions, Kiro, footer). Rename the package. No Fold references.
       Acceptance: `npm run build` exits 0; the page returns 200 and contains "simulated" and "55/55".
+
+- [ ] 5.10 Static export + GitHub Pages workflow, so the page has a live URL.
+      Acceptance: `STATIC_EXPORT=1 NEXT_PUBLIC_BASE_PATH=/laundry-sim npm run build` writes `out/`
+      with the video and `_next` under `/laundry-sim/`; the default build still succeeds.
 
 ## Phase 6 — Kiro artefacts (continuous)
 

@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 const REPO = "https://github.com/prohle/laundry-sim";
+const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
 const ROWS = [
   { patch: "0.12", config: "0.12 m", runs: 100, success: "70/100", unseen: "35/55" },
@@ -21,7 +22,7 @@ export default function Page() {
   return (
     <main>
       <section className="hero">
-        <video src="/fold.mp4" autoPlay muted loop playsInline />
+        <video src={`${base}/fold.mp4`} autoPlay muted loop playsInline />
         <p className="caption">simulated · no machine was built</p>
       </section>
 
