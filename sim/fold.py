@@ -42,7 +42,10 @@ def metrics(p0, p1, half_low):
                 z_moved=float(p1[~half_low, 2].mean()), z_still=float(p1[half_low, 2].mean()))
 
 
-def run(m, trace=None, render=None):
+TOTAL_STEPS = 50 + 150 + 200 + 100 + 50 + 100     # control steps in run(), after SETTLE
+
+
+def run(m, trace=None, render=None, on_step=None):
     d = mujoco.MjData(m)
     mujoco.mj_forward(m, d)
     adr, n = qpos_adr(m)
@@ -90,6 +93,8 @@ def run(m, trace=None, render=None):
             d.qpos[sl] = q.ravel()
         mujoco.mj_forward(m, d)
         state["step"] += 1
+        if on_step:
+            on_step(d, state["step"])
         pos = np.array(d.flexvert_xpos)
         if np.isnan(pos).any():
             state["nan"] = True

@@ -34,7 +34,7 @@ Ordered. Each task leaves the repo runnable. One task per turn. Verify with
       Acceptance: `sim/.venv/bin/python sim/fold.py` prints the six numbers and FOLDED;
       `cd sim && .venv/bin/python check.py` prints VERDICT: PASS (10 checks).
 - [~] 2.3 Superseded by 2.2b: the extent-ratio and overlap check is replaced by width, depth and on-top.
-- [ ] 2.4 Render the fold: 120 frames to `sim/out/fold.mp4`, one take, no cuts.
+- [x] 2.4 Render the fold: 120 frames to `sim/out/fold.mp4`, one take, no cuts.
 
 ## Phase 3 — Measure it (14–17 Nov)
 
