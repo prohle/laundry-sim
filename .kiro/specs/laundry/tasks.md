@@ -96,6 +96,18 @@ target y and the lift height. A controller, not RL — stated as such.
 - [ ] 5.2 Browser replay: MuJoCo WASM + three.js, scrub and shove.
 - [ ] 5.3 Video: 2:50, script in `_local/story.md`.
 
+## Phase 5b — Real garments (10–14 Nov)
+
+- [x] 5.4 Garment family: tee, pants, shorts, dress. Parametric shapes plus named landmarks
+      (sleeve tips, waist corners, hems, crotch). No assets.
+      Acceptance: each kind writes an OBJ; landmarks printed; no degenerate triangles.
+- [ ] 5.5 Fold-program executor: a fold is a list of steps (grasp, carry, release), each with its own
+      check. Replaces the single scripted trajectory.
+      Acceptance: the towel still folds 55/55 via a one-step program.
+- [ ] 5.6 T-shirt fold program: left sleeve in, right sleeve in, body in half. Gate: >= 6/10 on 10
+      unseen drops, or the multi-garment claim is dropped.
+- [ ] 5.7 Pants and shorts programs, only if 5.6 passes.
+
 ## Phase 6 — Kiro artefacts (continuous)
 
 - [ ] 6.1 MCP server `sim-tools`: `run_episode`, `eval_suite`, `render_clip`.

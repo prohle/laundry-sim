@@ -61,6 +61,16 @@ def c_tee():
     assert width("tee") > width("towel"), f"tee {width('tee'):.3f} <= towel {width('towel'):.3f}"
 
 
+def c_garments_all():
+    for kind in sorted(garment.DEFAULTS):
+        v, f, pins, marks = garment.build_full(kind)
+        deg, comps = garment.mesh_stats(v, f)
+        assert len(v) > 100, f"{kind}: {len(v)} vertices"
+        assert deg == 0, f"{kind}: {deg} degenerate triangles"
+        assert comps == 1, f"{kind}: {comps} components"
+        assert kind in ("towel", "tee", "pants", "shorts", "dress") and len(marks) == {"towel": 0, "tee": 6, "pants": 5, "shorts": 5, "dress": 4}[kind], f"{kind}: landmarks {sorted(marks)}"
+
+
 def c_scene_loads():
     model()
 
@@ -163,7 +173,7 @@ def c_corners_front():
 
 
 CHECKS = [("garment-towel", lambda: garment_ok("towel")), ("garment-tee", c_tee),
-          ("scene-loads", c_scene_loads), ("scene-parts", c_scene_parts),
+          ("garments-all", c_garments_all), ("scene-loads", c_scene_loads), ("scene-parts", c_scene_parts),
           ("garment-on-shelf", c_on_shelf), ("render", c_render), ("deterministic", c_deterministic),
           ("arms-present", c_arms_present), ("arms-ready", c_arms_ready),
           ("fold-folded", c_fold_folded), ("corners-front", c_corners_front), ("eval-reproducible", c_eval_reproducible),
