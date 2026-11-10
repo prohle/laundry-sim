@@ -20,6 +20,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fold
 import garment
+import program
 import scene
 
 OFFSET = 0.04
@@ -90,7 +91,8 @@ def one(i, seed, tmp, render=None, D=None, friction=False, grip_kp=None):
     try:
         cs = front_corners(np.array(d.flexvert_xpos))
         yf = None if D is None else float((cs[0][1] + cs[1][1]) / 2 - D)
-        r = fold.run(m, corners=cs, y_fold=yf, friction=friction)
+        r = (fold.run(m, corners=cs, y_fold=yf, friction=True) if friction else
+             program.run_program(m, program.towel_program(yf), corners=cs))
     except ValueError as e:
         row["why"] = str(e)
         return row                                      # IK: target out of reach or past a joint limit

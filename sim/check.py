@@ -144,6 +144,15 @@ def c_fold_folded():
     print(f"      {msg}")
 
 
+def c_fold_program_matches():
+    import program
+    a, b = fold.run(model()), program.run_program(model(), program.towel_program())
+    keys = ("x1", "y1", "z_moved", "z_still", "wrinkle", "time")
+    assert all(a[k] == b[k] for k in keys), {k: (a[k], b[k]) for k in keys if a[k] != b[k]}
+    assert b["folded"] and all(s["ok"] for s in b["steps"]), b["steps"]
+    print(f"      program == single trajectory on {len(keys)} numbers; steps {b['steps']}")
+
+
 def c_eval_reproducible():
     import eval as E
     t0 = time.time()
@@ -176,7 +185,7 @@ CHECKS = [("garment-towel", lambda: garment_ok("towel")), ("garment-tee", c_tee)
           ("garments-all", c_garments_all), ("scene-loads", c_scene_loads), ("scene-parts", c_scene_parts),
           ("garment-on-shelf", c_on_shelf), ("render", c_render), ("deterministic", c_deterministic),
           ("arms-present", c_arms_present), ("arms-ready", c_arms_ready),
-          ("fold-folded", c_fold_folded), ("corners-front", c_corners_front), ("eval-reproducible", c_eval_reproducible),
+          ("fold-folded", c_fold_folded), ("fold-program", c_fold_program_matches), ("corners-front", c_corners_front), ("eval-reproducible", c_eval_reproducible),
           ("policy-reproducible", c_policy_reproducible)]
 
 

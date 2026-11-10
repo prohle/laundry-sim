@@ -46,9 +46,12 @@ def metrics(p0, p1, half_low):
 TOTAL_STEPS = 50 + 150 + 50 + 200 + 100 + 50 + 100     # control steps in run(), after SETTLE
 
 
-def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, friction=False):
+def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, friction=False, program=None, landmarks=None):
     """corners: optional perceived (left, right) grasp targets; default is the fixed lay-down corners.
-    y_fold: optional fold target y for the pinch points; default Y_FOLD."""
+    y_fold: optional fold target y for the pinch points; default Y_FOLD.
+    program: optional list of steps (see program.py); None keeps the single scripted trajectory.
+    landmarks: extra {name: xy} for a program's grasp names; corner_l / corner_r are always defined."""
+    steps_out = []
     y_fold = Y_FOLD if y_fold is None else y_fold
     d = mujoco.MjData(m)
     mujoco.mj_forward(m, d)
@@ -124,7 +127,9 @@ def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, fri
         out = {}
         for s in arms.SIDES:
             t = tip[s].copy()
-            if inward: t[0] += INWARD if s == "l" else -INWARD
+            if inward:
+                a = INWARD if inward is True else inward
+                t[0] += a if s == "l" else -a
             if z is not None: t[2] = z
             if y is not None: t[1] = y
             out[s] = t
@@ -153,6 +158,49 @@ def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, fri
         move(at(z=Z_DOWN), 100); mark("lower")
         state["grip"] = arms.GRIP_OPEN
         move(at(z=Z_LIFT), 50)
+    elif program is not None:                       # fold program (task 5.5): same motion, per-step checks
+        import program as P
+        lm = {"corner_l": cs[0], "corner_r": cs[1], **(landmarks or {})}
+        tip0z = {s: tip[s][2] for s in arms.SIDES}
+        ctx = dict(half_low=half_low, ymid=ymid)
+        for k, st in enumerate(program):
+            pre = np.array(d.flexvert_xpos)
+            tg = [P.resolve(g, lm) for g in st["grasp"]]
+            if k > 0:                                   # re-approach: open, rise, move over the grasp points, descend
+                state["grip"] = arms.GRIP_OPEN; state["grasp"] = False
+                move(at(z=Z_LIFT), 50)
+                move({s: np.array([t[0], t[1], Z_LIFT]) for s, t in zip(arms.SIDES, tg)}, 100)
+                move({s: np.array([t[0], t[1], tip0z[s]]) for s, t in zip(arms.SIDES, tg)}, 50)
+            held.clear()
+            for side, c in zip(arms.SIDES, tg):
+                p = arms.pinch(m, d, side)
+                msk = np.hypot(pre[:, 0] - c[0], pre[:, 1] - c[1]) <= GRASP_RADIUS
+                if st.get("front_only", True):
+                    msk &= pre[:, 1] > ymid
+                idx = np.where(msk)[0]
+                held.append((side, idx, pre[idx, :2] - p[:2]))
+            state["grip"] = 0.0; state["grasp"] = True
+            move(at(), 50)                              # close, settle
+            move(at(z=st["lift_z"]), 150)               # lift
+            if st.get("inward"):
+                move(at(inward=st["inward"]), 50)
+            cdx, cdy = st["carry"]
+            if "carry_to_y" in st:
+                move(at(y=st["carry_to_y"]), 200)
+            elif cdx or cdy:
+                move({s: tip[s] + np.array([cdx, cdy, 0.0]) for s in arms.SIDES}, 200)
+            move(at(z=st["lower_z"]), 100)              # lower
+            if st.get("release", True):
+                state["grip"] = arms.GRIP_OPEN; state["grasp"] = False
+                move(at(z=st["lift_z"]), 50)            # release, retract
+            for _ in range(100):                        # let the cloth settle
+                step(tip)
+            post = np.array(d.flexvert_xpos)
+            if st.get("check"):
+                ok, nums = P.CHECKS[st["check"]](pre, post, ctx, st)
+            else:
+                ok, nums = True, {}
+            steps_out.append(dict(name=st["name"], ok=bool(ok), numbers=nums))
     else:
         state["grip"] = 0.0; state["grasp"] = True
         move(at(), 50)                                  # 2 close, settle
@@ -162,7 +210,7 @@ def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, fri
         move(at(z=Z_DOWN), 100)                         # 5 lower
         state["grip"] = arms.GRIP_OPEN; state["grasp"] = False
         move(at(z=Z_LIFT), 50)                          # 6 release, retract
-    for _ in range(100):                            # let the cloth settle
+    for _ in range(100 if (friction or program is None) else 0):   # let the cloth settle (program steps settle themselves)
         step(tip)
 
     pos = np.array(d.flexvert_xpos)
@@ -174,6 +222,9 @@ def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, fri
     res["depth_ok"] = res["y1"] <= DEPTH_MAX * res["y0"]
     res["top_ok"] = res["z_moved"] - res["z_still"] >= TOP_MIN
     res["folded"] = (not state["nan"]) and res["width_ok"] and res["depth_ok"] and res["top_ok"]
+    if program is not None and not friction:
+        res["steps"] = steps_out
+        res["folded"] = res["folded"] and all(s["ok"] for s in steps_out)
     if render:
         render("fold_end", d)
     return res

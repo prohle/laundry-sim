@@ -101,7 +101,7 @@ target y and the lift height. A controller, not RL — stated as such.
 - [x] 5.4 Garment family: tee, pants, shorts, dress. Parametric shapes plus named landmarks
       (sleeve tips, waist corners, hems, crotch). No assets.
       Acceptance: each kind writes an OBJ; landmarks printed; no degenerate triangles.
-- [ ] 5.5 Fold-program executor: a fold is a list of steps (grasp, carry, release), each with its own
+- [x] 5.5 Fold-program executor: a fold is a list of steps (grasp, carry, release), each with its own
       check. Replaces the single scripted trajectory.
       Acceptance: the towel still folds 55/55 via a one-step program.
 - [ ] 5.6 T-shirt fold program: left sleeve in, right sleeve in, body in half. Gate: >= 6/10 on 10
