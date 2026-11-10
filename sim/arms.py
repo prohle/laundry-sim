@@ -20,9 +20,11 @@ RANGES = {"shoulder": (-2.2, 2.2), "upper": (-2.4, 1.0), "elbow": (-0.3, 2.8), "
           "grip": (0.0, GRIP_OPEN)}
 HINGES = ("shoulder", "upper", "elbow", "wrist")
 GEOM = 'contype="0" conaffinity="0"'
+PAD = 'contype="1" conaffinity="1" condim="6" friction="1.2 0.02 0.001"'   # task 2.5: contact finger pads
 
 
-def _arm(side):
+def _arm(side, pads=False):
+    pad = PAD if pads else GEOM
     x, heading = SIDES[side]
     n = f"arm_{side}"
     j = f'armature="{ARMATURE}"'
@@ -45,11 +47,11 @@ def _arm(side):
               <site name="{n}_pinch" pos="0 0 -{TOOL}" size="0.006" rgba="1 0 0 1"/>
               <body name="{n}_finger_a" pos="0.005 0 -0.045">
                 <joint name="{n}_grip" type="slide" axis="1 0 0" range="0 {GRIP_OPEN}" {j}/>
-                <geom name="{n}_finger_a" type="box" size="0.005 0.02 0.025" rgba="0.2 0.2 0.22 1" {GEOM}/>
+                <geom name="{n}_finger_a" type="box" size="0.005 0.02 0.025" rgba="0.2 0.2 0.22 1" {pad}/>
               </body>
               <body name="{n}_finger_b" pos="-0.005 0 -0.045">
                 <joint name="{n}_grip2" type="slide" axis="-1 0 0" range="0 {GRIP_OPEN}" {j}/>
-                <geom name="{n}_finger_b" type="box" size="0.005 0.02 0.025" rgba="0.2 0.2 0.22 1" {GEOM}/>
+                <geom name="{n}_finger_b" type="box" size="0.005 0.02 0.025" rgba="0.2 0.2 0.22 1" {pad}/>
               </body>
             </body>
           </body>
@@ -58,17 +60,17 @@ def _arm(side):
     </body>"""
 
 
-def worldbody_xml():
-    return "".join(_arm(s) for s in SIDES)
+def worldbody_xml(pads=False):
+    return "".join(_arm(s, pads) for s in SIDES)
 
 
-def actuator_xml():
+def actuator_xml(grip_kp=None):
     rows = []
     for s in SIDES:
         for k in (*HINGES, "grip"):
             lo, hi = RANGES[k]
             kv = KV_SLIDE if k == "grip" else KV
-            rows.append(f'<position name="arm_{s}_{k}" joint="arm_{s}_{k}" kp="{KP}" kv="{kv}" '
+            rows.append(f'<position name="arm_{s}_{k}" joint="arm_{s}_{k}" kp="{grip_kp if (k == "grip" and grip_kp) else KP}" kv="{kv}" '
                         f'ctrlrange="{lo} {hi}"/>')
     return "<actuator>\n    " + "\n    ".join(rows) + "\n  </actuator>"
 

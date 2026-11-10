@@ -43,21 +43,26 @@ the kinematic grasp.
 
 ## Negative results, kept
 
+- **Friction grasp: 0/10 against 10/10 kinematic** on the same drops, at two closing forces. The cloth
+  never leaves the shelf. The gripper is two vertical plates that close sideways on a flat sheet lying
+  on a shelf; there is no edge to pinch, and the closing force is 0.1–0.2 N. The fix is a finger that
+  slides under the edge, which is a mechanism change, not a tuning change.
 - **3 cm more forearm: 0/50.** The upper joint hits its −2.4 rad limit at the carry target on every
   run. A longer forearm must fold the upper link further back, so it trades reach for a singularity.
 - **A relative fold target, fitted on seeds 1–5: 32/50 on seeds 6–10, identical to the scripted
   baseline.** The limit was the machine's geometry, not the policy.
 
-Both are in `sim/out/`. They are the reason the patch fix was the one that worked: the failure was
-sag between the grippers, not reach.
+All three are in `sim/out/`. Together they are the point of the project: **the simulator found three
+mechanical limits in a day, before any hardware existed.** A company that builds the cabinet first
+finds them after the tooling is paid for.
 
 ## Limits
 
 - **Simulated only.** No machine, no fabric, no physical proof.
 - **One garment, one fold.** A 0.70 x 0.40 m towel, folded in half along its depth. The T-shirt
   generator exists but is not folded.
-- **Kinematic grasp.** The held cloth is moved to the gripper, not gripped by friction. A friction
-  grasp is the next experiment; the gap between them is the interesting number.
+- **Kinematic grasp in the shipped result.** The held cloth is moved to the gripper, not gripped by
+  friction. A contact grasp was tried and failed 0/10; the cause is the finger geometry, above.
 - **10 independent drops.** The 100% is real but the sample is small, and the README says so.
 - **Wrinkle is a proxy** (mean edge strain), not a measurement of appearance.
 - **Yaw is fixed at 0** for the baseline. A rotated garment needs a rotated-frame corner detector

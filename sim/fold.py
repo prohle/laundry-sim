@@ -46,7 +46,7 @@ def metrics(p0, p1, half_low):
 TOTAL_STEPS = 50 + 150 + 50 + 200 + 100 + 50 + 100     # control steps in run(), after SETTLE
 
 
-def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None):
+def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, friction=False):
     """corners: optional perceived (left, right) grasp targets; default is the fixed lay-down corners.
     y_fold: optional fold target y for the pinch points; default Y_FOLD."""
     y_fold = Y_FOLD if y_fold is None else y_fold
@@ -130,14 +130,38 @@ def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None):
             out[s] = t
         return out
 
-    state["grip"] = 0.0; state["grasp"] = True
-    move(at(), 50)                                  # 2 close, settle
-    move(at(z=Z_LIFT), 150)                         # 3 lift
-    move(at(inward=True), 50)                       # 3b inward, away from the shoulder columns
-    move(at(y=y_fold), 200)                         # 4 carry over
-    move(at(z=Z_DOWN), 100)                         # 5 lower
-    state["grip"] = arms.GRIP_OPEN; state["grasp"] = False
-    move(at(z=Z_LIFT), 50)                          # 6 release, retract
+    slip = {}
+    cidx = [int(np.argmin(np.hypot(pos0[:, 0] - c[0], pos0[:, 1] - c[1]))) for c in cs]   # corner vertices
+
+    def mark(phase):                                # friction: first phase where a corner is >3 cm from its pinch
+        if friction and "at" not in slip:
+            p = np.array(d.flexvert_xpos)
+            dist = max(float(np.linalg.norm(p[i] - tip[s])) for i, s in zip(cidx, arms.SIDES))
+            if dist > 0.03:
+                slip["at"], slip["dist"] = phase, dist
+
+    if friction:                                    # contact grasp: no vertex override
+        import scene
+        move(at(z=scene.SHELF_Z + scene.SHELF_T / 2 + 0.012), 50)   # descend, fingers open, bottoms 2 mm above the shelf
+        state["grip"] = 0.0
+        for _ in range(100):
+            step(tip)                               # close and wait
+        mark("grasp")
+        move(at(z=Z_LIFT), 150); mark("lift")
+        move(at(inward=True), 50)
+        move(at(y=y_fold), 200); mark("carry")
+        move(at(z=Z_DOWN), 100); mark("lower")
+        state["grip"] = arms.GRIP_OPEN
+        move(at(z=Z_LIFT), 50)
+    else:
+        state["grip"] = 0.0; state["grasp"] = True
+        move(at(), 50)                                  # 2 close, settle
+        move(at(z=Z_LIFT), 150)                         # 3 lift
+        move(at(inward=True), 50)                       # 3b inward, away from the shoulder columns
+        move(at(y=y_fold), 200)                         # 4 carry over
+        move(at(z=Z_DOWN), 100)                         # 5 lower
+        state["grip"] = arms.GRIP_OPEN; state["grasp"] = False
+        move(at(z=Z_LIFT), 50)                          # 6 release, retract
     for _ in range(100):                            # let the cloth settle
         step(tip)
 
@@ -145,7 +169,7 @@ def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None):
     stretch = float((np.linalg.norm(pos[e[:, 0]] - pos[e[:, 1]], axis=1) / rest).max())
     res = metrics(pos0, pos, half_low)
     wrinkle = float(np.abs(np.linalg.norm(pos[e[:, 0]] - pos[e[:, 1]], axis=1) / rest - 1.0).mean())
-    res.update(maxq=state["maxq"], nan=state["nan"], stretch=stretch, wrinkle=wrinkle, time=state["step"] * m.opt.timestep, y_centre=float((pos[:, 1].max() + pos[:, 1].min()) / 2))
+    res.update(slip=slip.get("at", "none"), slip_dist=slip.get("dist", 0.0), maxq=state["maxq"], nan=state["nan"], stretch=stretch, wrinkle=wrinkle, time=state["step"] * m.opt.timestep, y_centre=float((pos[:, 1].max() + pos[:, 1].min()) / 2))
     res["width_ok"] = res["x1"] >= WIDTH_MIN * res["x0"]
     res["depth_ok"] = res["y1"] <= DEPTH_MAX * res["y0"]
     res["top_ok"] = res["z_moved"] - res["z_still"] >= TOP_MIN

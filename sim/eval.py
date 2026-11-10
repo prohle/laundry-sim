@@ -76,13 +76,13 @@ def corner_drops(tmp, drops=None):
     return rows
 
 
-def one(i, seed, tmp, render=None, D=None):
+def one(i, seed, tmp, render=None, D=None, friction=False, grip_kp=None):
     """D=None: scripted baseline (absolute fold target fold.Y_FOLD). D=float: relative controller,
     fold_target_y = mean(y_l, y_r) - D from the perceived corners. A hand-set controller, not RL."""
     yaw, dx, dy = drop(np.random.default_rng(seed + i))
     obj = os.path.join(tmp, "towel.obj")
     posed_obj(obj, yaw, dx, dy)
-    m = mujoco.MjModel.from_xml_string(scene.build(obj, "towel"))
+    m = mujoco.MjModel.from_xml_string(scene.build(obj, "towel", pads=friction, grip_kp=grip_kp))
     d = mujoco.MjData(m)
     mujoco.mj_forward(m, d)
     row = dict(run=i, yaw=yaw, dx=dx, dy=dy, width=float("nan"), depth=float("nan"), ontop=float("nan"),
@@ -90,12 +90,12 @@ def one(i, seed, tmp, render=None, D=None):
     try:
         cs = front_corners(np.array(d.flexvert_xpos))
         yf = None if D is None else float((cs[0][1] + cs[1][1]) / 2 - D)
-        r = fold.run(m, corners=cs, y_fold=yf)
+        r = fold.run(m, corners=cs, y_fold=yf, friction=friction)
     except ValueError as e:
         row["why"] = str(e)
         return row                                      # IK: target out of reach or past a joint limit
     row.update(width=r["x1"] / r["x0"], depth=r["y1"] / r["y0"], ontop=r["z_moved"] - r["z_still"],
-               time=r["time"], wrinkle=r["wrinkle"], result="FOLDED" if r["folded"] else "FAILED")
+               time=r["time"], wrinkle=r["wrinkle"], slip=r["slip"], result="FOLDED" if r["folded"] else "FAILED")
     if r["nan"]:
         row["result"] = "NAN"
     return row
@@ -136,12 +136,35 @@ def summary(rows):
     return f"success: {len(ok)}/{len(rows)}   mean time: {mt:.1f} s   mean wrinkle: {mw:.3f}"
 
 
+def friction_table(a, out):
+    """Task 2.5: contact grasp (finger pads, no vertex override) at two closing forces vs the kinematic grasp, same seeds."""
+    L = [f"Simulated towel fold, friction grasp (pad friction 1.2, condim 6, no vertex override). {a.runs} runs, seed {a.seed}, {time.strftime('%Y-%m-%d')}.",
+         "Scripted trajectory, perceived corners. Kinematic grasp = the shipped one, same drops. One pass, no tuning.", ""]
+    with tempfile.TemporaryDirectory() as tmp:
+        kin = evaluate(a.runs, a.seed, tmp)
+        res = {kp: [one(i, a.seed, tmp, friction=True, grip_kp=kp) for i in range(a.runs)] for kp in (40, 80)}
+    L += ["| grasp | folded | slip point (runs) |", "|---|---|---|", f"| kinematic | {nfolded(kin)}/{len(kin)} | - |"]
+    for kp, rows in res.items():
+        sl = {}
+        for r in rows:
+            sl[r.get("slip", "NOREACH")] = sl.get(r.get("slip", "NOREACH"), 0) + 1
+        L.append(f"| friction, grip kp {kp} | {nfolded(rows)}/{len(rows)} | {sl} |")
+    for kp, rows in res.items():
+        L += ["", f"grip kp {kp}", "```", HEADER] + [fmt(r) for r in rows] + ["```"]
+    best = max(nfolded(r) for r in res.values())
+    L += ["", f"Gap (best friction vs kinematic): {nfolded(kin) - best} of {len(kin)} runs.", "", "Simulated, not a physical fold. Wrinkle is a proxy."]
+    os.makedirs(out, exist_ok=True)
+    open(os.path.join(out, "friction.md"), "w").write("\n".join(L) + "\n")
+    print("\n".join(L))
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--runs", type=int, default=10)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--corners", action="store_true", help="print the 9-drop corner table (task 3.5) and exit")
-    ap.add_argument("--policy", choices=("scripted", "relative"), default=None,
+    ap.add_argument("--policy", choices=("scripted", "relative", "friction"), default=None,
                     help="scripted: absolute fold target; relative: fold_target_y = mean(y_l, y_r) - D. Given, baseline.md is not written")
     ap.add_argument("--D", type=float, default=None, help=f"relative policy depth, default {D_CHOSEN}")
     ap.add_argument("--experiment", action="store_true", help="4.2/4.3: fit D on seeds 1-5, test on seeds 6-10, write out/policy.md")
@@ -203,6 +226,8 @@ def main():
         ok = sum(max(el, er) < 0.02 and sep > 0.6 for *_, el, er, sep in rows)
         print(f"pass: {ok}/9   worst error: {max(max(r[4], r[5]) for r in rows):.4f} m")
         return 0 if ok == 9 else 1
+    if a.policy == "friction":
+        return friction_table(a, out)
     t0 = time.time()
     with tempfile.TemporaryDirectory() as tmp:
         rows = evaluate(a.runs, a.seed, tmp, None if a.policy != "relative" else (a.D if a.D is not None else D_CHOSEN))

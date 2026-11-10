@@ -47,6 +47,11 @@ Ordered. Each task leaves the repo runnable. One task per turn. Verify with
       Ground truth is known from the drop parameters, so compare to it: each target within 0.02 m of
       the true corner, separation > 0.6 m, over the 9 position drops (dx, dy in {-0.04, 0, 0.04}).
       Acceptance: 9/9 pass and the table is printed.
+- [x] 2.5 Friction grasp: 0/10 at kp 40 and 80 vs 10/10 kinematic. Cause: vertical fingers cannot pinch a flat sheet.
+      Enable contact on the finger pads (condim 6, high friction), close them on the front edge, lift.
+      One attempt: report the success rate on seeds 11-20 and the gap against the kinematic 55/55.
+      Do not tune for more than one pass; the gap is the result.
+      Acceptance: `sim/eval.py --policy friction --runs 10 --seed 11` prints a table; the gap is reported.
 - [ ] 3.6 Yaw ±20°: rotated-frame corner detector. Later; not part of the baseline.
 - [x] 3.7 Arm bases forward of the back wall, so the grasp targets are not at the yaw singularity.
       Move both shoulder bases to (0.05, -0.08, 0.75) and (0.75, -0.08, 0.75), reaching forward and
