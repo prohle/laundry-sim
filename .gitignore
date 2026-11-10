@@ -31,3 +31,4 @@ tools/out/
 sim/.venv/
 sim/__pycache__/
 sim/out/
+archive/fold/solver/target/
