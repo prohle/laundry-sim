@@ -1,8 +1,8 @@
 """Baseline evaluation: N seeded runs of the fixed scripted fold on randomly dropped towels. Simulated.
 
-Run i uses numpy.random.default_rng(seed + i): yaw uniform +-20 deg, offset uniform +-0.04 m in x and y.
-Perception: the grasp targets are the two front corners found from the garment's vertices (PCA axes,
-extreme corners, the two with the largest y). The trajectory is the unmodified one from fold.py.
+Run i uses numpy.random.default_rng(seed + i): yaw fixed at 0, offset uniform +-0.04 m in x and y.
+Perception: the grasp targets are the two front corners found from the garment's vertices (max-y vertex
+on each side of the centroid x). The trajectory is the one from fold.py.
 A run whose targets the arms cannot reach is recorded as NOREACH (a failure), not skipped.
 """
 import os
@@ -22,13 +22,13 @@ import fold
 import garment
 import scene
 
-YAW_DEG, OFFSET = 20.0, 0.04
+OFFSET = 0.04
 HEADER = "run  yaw    dx     dy    width  depth  ontop   result    wrinkle"
 
 
 def drop(rng):
-    """Draw yaw (deg), dx, dy for one run. Order is fixed so a seed names a pose."""
-    return float(rng.uniform(-YAW_DEG, YAW_DEG)), float(rng.uniform(-OFFSET, OFFSET)), float(rng.uniform(-OFFSET, OFFSET))
+    """Draw (yaw, dx, dy) for one run. Baseline: yaw is fixed at 0 (task 3.3; yaw is 3.6). Order is fixed so a seed names a pose."""
+    return 0.0, float(rng.uniform(-OFFSET, OFFSET)), float(rng.uniform(-OFFSET, OFFSET))
 
 
 def posed_obj(path, yaw, dx, dy):
@@ -133,7 +133,7 @@ def main():
     with tempfile.TemporaryDirectory() as tmp:
         rows = evaluate(a.runs, a.seed, tmp)
     head = (f"Simulated towel fold, scripted baseline, same fixed trajectory every run. "
-            f"{a.runs} runs, seed {a.seed}; no tuning, no train/test split (nothing is learned).")
+            f"{a.runs} runs, seed {a.seed}, {time.strftime('%Y-%m-%d')}; no tuning, no train/test split (nothing is learned).")
     lines = [head, "", HEADER] + [fmt(r) for r in rows] + ["", summary(rows)]
     lines += [f"  run {r['run']}: {r['why']}" for r in rows if r.get("why")]
     print("\n".join(lines))

@@ -22,7 +22,8 @@ import garment
 ALPHA = 0.35          # fraction of the remaining distance closed per step
 MAX_STEP = 0.02       # per-step cap on a grasped vertex, metres
 GRASP_RADIUS = 0.12   # vertices within this xy distance of a corner are held (corner row only)
-Z_LIFT, Z_DOWN = 0.72, 0.62  # 0.78 puts the elbow past its limit when the pinch passes under the shoulder
+Z_LIFT, Z_DOWN = 0.66, 0.62  # base at y=-0.08: lifting higher (0.72-0.85) pushes 'upper' past -2.4 during the carry; 0.66 is the lowest lift that clears
+INWARD = 0.12         # both pinch points move this far toward the cabinet centre after the lift and stay there through release (adjustment needed: lifting higher failed)
 Y_FOLD = -0.05        # pinch y at the far side; the towel spans y -0.15..0.25, so 0.18 would not fold it. -0.10 is past the elbow limit
 SETTLE = 200          # not counted in the ~550 fold steps
 WIDTH_MIN, DEPTH_MAX, TOP_MIN = 0.90, 0.60, 0.002  # x1/x0, y1/y0, metres
@@ -42,7 +43,7 @@ def metrics(p0, p1, half_low):
                 z_moved=float(p1[~half_low, 2].mean()), z_still=float(p1[half_low, 2].mean()))
 
 
-TOTAL_STEPS = 50 + 150 + 200 + 100 + 50 + 100     # control steps in run(), after SETTLE
+TOTAL_STEPS = 50 + 150 + 50 + 200 + 100 + 50 + 100     # control steps in run(), after SETTLE
 
 
 def run(m, trace=None, render=None, on_step=None, corners=None):
@@ -68,7 +69,7 @@ def run(m, trace=None, render=None, on_step=None, corners=None):
         held.append((side, idx, pos0[idx, :2] - p[:2]))
 
     tip = {s: arms.pinch(m, d, s) for s in arms.SIDES}
-    state = {"step": 0, "grip": arms.GRIP_OPEN, "grasp": False, "nan": False, "tear": 0.0, "mid": False}
+    state = {"step": 0, "grip": arms.GRIP_OPEN, "grasp": False, "nan": False, "tear": 0.0, "mid": False, "maxq": {}}
     front = np.where(pos0[:, 1] >= pos0[:, 1].max() - 1e-6)[0]
     verts, faces, _ = garment.build("towel")
     e = np.array(sorted({tuple(sorted((f[i], f[(i + 1) % 3]))) for f in faces for i in range(3)}))
@@ -79,6 +80,7 @@ def run(m, trace=None, render=None, on_step=None, corners=None):
     def step(target):
         for s in arms.SIDES:
             for k, v in arms.ik(s, target[s]).items():
+                state["maxq"][k] = max(state["maxq"].get(k, 0.0), abs(v))
                 d.ctrl[m.actuator(f"arm_{s}_{k}").id] = v
             d.ctrl[m.actuator(f"arm_{s}_grip").id] = state["grip"]
         mujoco.mj_step(m, d)
@@ -116,10 +118,11 @@ def run(m, trace=None, render=None, on_step=None, corners=None):
         for s in arms.SIDES:
             tip[s] = goal[s].copy()
 
-    def at(z=None, y=None):
+    def at(z=None, y=None, inward=False):
         out = {}
         for s in arms.SIDES:
             t = tip[s].copy()
+            if inward: t[0] += INWARD if s == "l" else -INWARD
             if z is not None: t[2] = z
             if y is not None: t[1] = y
             out[s] = t
@@ -128,6 +131,7 @@ def run(m, trace=None, render=None, on_step=None, corners=None):
     state["grip"] = 0.0; state["grasp"] = True
     move(at(), 50)                                  # 2 close, settle
     move(at(z=Z_LIFT), 150)                         # 3 lift
+    move(at(inward=True), 50)                       # 3b inward, away from the shoulder columns
     move(at(y=Y_FOLD), 200)                         # 4 carry over
     move(at(z=Z_DOWN), 100)                         # 5 lower
     state["grip"] = arms.GRIP_OPEN; state["grasp"] = False
@@ -139,7 +143,7 @@ def run(m, trace=None, render=None, on_step=None, corners=None):
     stretch = float((np.linalg.norm(pos[e[:, 0]] - pos[e[:, 1]], axis=1) / rest).max())
     res = metrics(pos0, pos, half_low)
     wrinkle = float(np.abs(np.linalg.norm(pos[e[:, 0]] - pos[e[:, 1]], axis=1) / rest - 1.0).mean())
-    res.update(nan=state["nan"], stretch=stretch, wrinkle=wrinkle, time=state["step"] * m.opt.timestep, y_centre=float((pos[:, 1].max() + pos[:, 1].min()) / 2))
+    res.update(maxq=state["maxq"], nan=state["nan"], stretch=stretch, wrinkle=wrinkle, time=state["step"] * m.opt.timestep, y_centre=float((pos[:, 1].max() + pos[:, 1].min()) / 2))
     res["width_ok"] = res["x1"] >= WIDTH_MIN * res["x0"]
     res["depth_ok"] = res["y1"] <= DEPTH_MAX * res["y0"]
     res["top_ok"] = res["z_moved"] - res["z_still"] >= TOP_MIN
@@ -173,7 +177,7 @@ def main():
     print(f"width: x {r['x0']:.3f} -> {r['x1']:.3f} (>= {WIDTH_MIN} x before): {'ok' if r['width_ok'] else 'FAIL'}\n"
           f"depth: y {r['y0']:.3f} -> {r['y1']:.3f} (<= {DEPTH_MAX} x before): {'ok' if r['depth_ok'] else 'FAIL'}\n"
           f"on top: mean z moved {r['z_moved']:.4f}, still {r['z_still']:.4f} (diff >= {TOP_MIN}): {'ok' if r['top_ok'] else 'FAIL'}\n"
-          f"final y-centre {r['y_centre']:.3f}  max edge stretch {r['stretch']:.2f}  nan {r['nan']}")
+          f"final y-centre {r['y_centre']:.3f}  max edge stretch {r['stretch']:.2f}  nan {r['nan']}  max |joint| "+" ".join(f"{k} {v:.3f}/{max(abs(x) for x in arms.RANGES[k])}" for k, v in r['maxq'].items())+f" rad (INWARD {INWARD} m, Z_LIFT {Z_LIFT})")
     print("FOLDED" if r["folded"] else "NOT FOLDED")
     return 0 if r["folded"] else 1
 

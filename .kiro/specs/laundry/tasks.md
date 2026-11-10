@@ -48,11 +48,14 @@ Ordered. Each task leaves the repo runnable. One task per turn. Verify with
       the true corner, separation > 0.6 m, over the 9 position drops (dx, dy in {-0.04, 0, 0.04}).
       Acceptance: 9/9 pass and the table is printed.
 - [ ] 3.6 Yaw ±20°: rotated-frame corner detector. Later; not part of the baseline.
-- [ ] 3.7 Arm bases on the back wall, so the grasp targets are not at the yaw singularity.
-      Move both shoulder bases to (0.05, -0.20, 0.75) and (0.75, -0.20, 0.75), reaching forward and
-      down. Re-solve the ready pose. The target must be forward of the shoulder, not below it.
-      Acceptance: for the 9 position drops at yaw 0, max |shoulder| at the ready pose < 1.2 rad.
-- [ ] 3.4 Carry path reachable across the position drops.
+- [x] 3.7 Arm bases forward of the back wall, so the grasp targets are not at the yaw singularity.
+      Move both shoulder bases to (0.05, -0.08, 0.75) and (0.75, -0.08, 0.75), reaching forward and
+      down. y = -0.08 is chosen from the reach arithmetic: the farthest corner is 0.40 m away, under
+      the 0.44 m limit, and both the corner and the carry target (y = -0.05) are forward of the base.
+      Re-solve the ready pose. Keep link lengths, gripper and joint ranges.
+      Acceptance: for the 9 position drops at yaw 0, max |shoulder| at the ready pose < 1.2 rad and
+      gripper-to-corner < 0.08 m.
+- [x] 3.4 Carry path reachable across the position drops.
       `d` = an inward x move applied after the lift and undone before release, to keep the pinch off
       the shoulder column. The path must not exceed any joint limit for offset in ±0.04 m at yaw 0.
       Fix the trajectory, not the joint ranges and not the randomisation.
@@ -60,9 +63,10 @@ Ordered. Each task leaves the repo runnable. One task per turn. Verify with
 
 ## Phase 4 — Learn it (17–22 Nov)
 
-- [ ] 4.1 Policy skeleton: observation, action, episode loop.
-- [ ] 4.2 Train against the eval, log every attempt.
-- [ ] 4.3 Table: baseline vs learned, same seeds, same N.
+- [ ] 4.1 Closed-loop policy: observe the perceived corners and the current y-extent; set the fold
+target y and the lift height. A controller, not RL — stated as such.
+- [ ] 4.2 Fit on training drops (seeds 1-5), evaluate on held-out drops (seeds 6-10). No tuning on test.
+- [ ] 4.3 Table: scripted baseline vs closed-loop policy, same held-out seeds, same N.
 
 ## Phase 5 — Show it (22–28 Nov)
 

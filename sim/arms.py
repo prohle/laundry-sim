@@ -9,8 +9,8 @@ import math
 
 import numpy as np
 
-SIDES = {"l": (0.05, 0.0), "r": (0.75, 180.0)}   # shoulder x, heading of local +x (deg); mirrored about x = 0.40
-SHOULDER_Y, SHOULDER_Z = 0.05, 0.90              # base box 0.85..0.90 on the wall, shoulder at its top
+SIDES = {"l": (0.05, 90.0), "r": (0.75, 90.0)}   # shoulder x, heading of local +x (deg): both reach forward (+y); mirrored about x = 0.40
+SHOULDER_Y, SHOULDER_Z = -0.08, 0.75             # forward of the back wall, so the grasp targets are off the yaw singularity
 L1, L2, TOOL = 0.24, 0.20, 0.06                  # upper link, forearm, wrist -> pinch point
 HOVER = 0.05                                     # ready pose: pinch point this far above the corner
 ARMATURE = 0.02                                  # reflected inertia; keeps kv stable at dt = 0.004 with Euler
