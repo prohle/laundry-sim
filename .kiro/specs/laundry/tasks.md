@@ -8,12 +8,12 @@ Ordered. Each task leaves the repo runnable. One task per turn. Verify with
 - [x] 1.1 `sim/garment.py`: parametric towel and tee -> OBJ, print counts and pin ids.
       Acceptance: `sim/.venv/bin/python sim/garment.py --kind towel` and `--kind tee` both write an
       OBJ; counts printed; no asset downloaded.
-- [ ] 1.2 `sim/scene.py` + a minimal `sim/run.py`: cabinet, shelf, garment, two cameras; load, step,
+- [x] 1.2 `sim/scene.py` + a minimal `sim/run.py`: cabinet, shelf, garment, two cameras; load, step,
       render one frame. MJCF built as a string.
       Acceptance: `sim/.venv/bin/python sim/run.py --frames 1` writes `sim/out/frame.png`, no NaN.
 - [ ] 1.3 `sim/check.py`: R1-R3 assertions; exit non-zero with the failing assertion named.
       Acceptance: passes on a clean checkout; fails if the cabinet is removed from the scene.
-- [ ] 1.2b Gravity on and the towel resting on the shelf; top camera inside the cabinet.
+- [x] 1.2b Gravity on and the towel resting on the shelf; top camera inside the cabinet.
       Acceptance: after 200 steps the towel z-range is 0.56-0.60, no NaN, both cameras render.
 - [ ] 1.4 Extend `sim/run.py`: `--frames N`, `--video path.mp4`, `--camera`.
       Acceptance: `--frames 30` writes 30 PNGs or one mp4.
