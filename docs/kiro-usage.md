@@ -10,7 +10,9 @@ Where the repository does not settle a question, the text says so.
 - a prompt: read `.kiro/steering/product.md` and `.kiro/specs/fold/tasks.md` before any change,
   implement only what `tasks.md` lists, and propose a spec change instead of writing code for
   anything else;
-- resources: `file://.kiro/steering/**/*.md` and `file://.kiro/specs/**/*.md`;
+- resources: `file://.kiro/steering/**/*.md` and `file://.kiro/specs/fold/tasks.md` only. This was
+  narrowed on 2026-11-08: the glob previously pulled `design.md` and `requirements.md` into every
+  request as well, for 82.6 KB of fixed context. See "Credit accounting" below;
 - a `postToolUse` hook (below);
 - the `fold-fixtures` MCP server, with its two read-only tools in `allowedTools`;
 - write permission limited to `src/`, `.kiro/`, `solver/`, `package.json` and `package-lock.json`.
@@ -95,6 +97,45 @@ called both tools. For the dog it returned 6 leaves, Medium, 55 vertices and 108
 35 interior vertices flat-foldable. For the beetle it returned the refusal, with all 73 interior
 vertices failing local flat-foldability. The point of the server is that the agent can check a
 fixture's result in about half a second instead of running the CLI and reading its log.
+
+## Credit accounting
+
+`tools/credits.sh` reads `~/.kiro/sessions/*/*/messages.jsonl` and sums the `usage_summary` records.
+Measured over 65 turns, 5-7 November:
+
+| | |
+|---|---|
+| Turns | 65 |
+| Model requests | 1,077 |
+| Credits | 314.1 |
+| Requests per turn | 16.6 |
+| Credits per request | 0.292 |
+| Tool calls that were `execute_bash` | 769 of ~1,120 (69%) |
+
+Cost per request rises with context inside a turn: 0.154 credits for turns of 1-5 requests, 0.328 for
+turns of 21-40. The 16 turns above 20 requests were 25% of the turns and 46% of the credits.
+
+Two causes, both fixable:
+
+1. **Fixed context.** The agent's `resources` glob loaded 82.6 KB on every request, of which
+   `tasks.md` was 59.0 KB. 87% of that file was finished or partial work, and 43% was one completed
+   phase.
+2. **The bash loop.** Verification was five separate calls (`tsc`, `npm test`, `cargo test`, the
+   fixture pipeline, `git status`), each a request that re-sent everything.
+
+The diet, applied 2026-11-08:
+
+- Completed and partial tasks moved to `.kiro/archive/tasks-done.md`, which the glob does not match.
+  `tasks.md` went from 59.0 KB to 5.3 KB; all 33 open tasks are unchanged, and a short "Do not retry"
+  list keeps the negative results that the narratives used to carry.
+- The glob narrowed to `steering/**` plus `tasks.md`, dropping `design.md` and `requirements.md`
+  from the default load.
+- `.kiro/steering/workflow.md` makes `tools/check.sh` the only verification call, one task per turn,
+  and reading each file once.
+- Fixed context per request: **82.6 KB to 9.7 KB, an 88% cut.**
+
+Not yet measured: credits per turn after the change. That is the next `tools/credits.sh` reading, and
+it should be compared against the 4.83 mean above rather than asserted.
 
 ## Testing
 

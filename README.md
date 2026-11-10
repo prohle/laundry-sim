@@ -11,6 +11,11 @@ Category: Frankenstein. Supported class: objects with distinct protrusions on a 
 square, no cuts. In practice four to six flaps: on the three animal fixtures, Medium (six flaps)
 is the only tier that folds. Hard and Expert are attempted and refused, with the reason shown.
 
+Protrusions are necessary, not sufficient. A side-view ship has four of them, passes every check,
+and folds into a generic base: a ship and a dog have the same tree topology, so the pipeline cannot
+tell them apart. The app reports the pattern's coverage of the sheet and shows the 3D base before
+anything is printed; it does not claim to judge whether that base resembles the subject.
+
 ## The chimera
 
 - A camera (2026): the input is a photograph.
@@ -69,7 +74,9 @@ All figures below are from runs in this repository. Conditions are stated.
   and 0 Kawasaki failures at a tolerance of 5e-5 rad (0.003 degrees). The tolerance was raised
   from 2e-5 after the tuatara missed by 1.1e-5 rad. We read the residuals as the optimiser
   stopping short of exact convergence. These checks are necessary, not sufficient: global
-  foldability and the folded-state count are not computed.
+  foldability and the folded-state count are not computed. Since 2026-11-08 a Maekawa failure is
+  fatal and a Kawasaki failure is a printed warning carrying its residual in millimetres: a
+  subject that solved is never withheld for a numerical residual smaller than the paper.
 - End to end: 2.1 to 3.7 s, of which 1.5 to 2.9 s is the selection sweep over 13 candidate trees.
   The requirement is 20 s.
 - Tests: 77 Node tests and 10 Rust tests pass (`npm test`, `cargo test --release` in `solver`).

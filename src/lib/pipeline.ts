@@ -594,6 +594,12 @@ export interface PipelineResult {
   foldCheck: FoldValidation | null;
   foldFacesOmitted: string | null;
   flatFold: FlatFoldReport | null;
+  /**
+   * Checks that did not pass but do not stop the pattern being printed. Kawasaki residuals live here:
+   * the optimiser stops short of exact convergence, and the error is smaller than the paper. Maekawa
+   * failures stay fatal, because they are combinatorial, not numerical.
+   */
+  warnings: string[];
   svg: string | null;
   images: { mask: Buffer | null; overlay: Buffer | null };
   timingsMs: Record<string, number>;
@@ -615,7 +621,7 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
   const r: PipelineResult = {
     ok: false, refusal: null, fault: null, log: [], image: null, coverage: null, tree: null,
     contraction: null, selection: null, minimum: null, tiers: null, budget: null, solver: null, solverInput: null, multiSheet: null, assigned: false,
-    fold: null, foldCheck: null, foldFacesOmitted: null, flatFold: null, svg: null,
+    fold: null, foldCheck: null, foldFacesOmitted: null, flatFold: null, warnings: [], svg: null,
     images: { mask: null, overlay: null }, timingsMs: lap, totalMs: 0,
   };
   const say = (l: LogLine) => r.log.push(l);
@@ -958,14 +964,25 @@ export async function runPipeline(bytes: Uint8Array, opts: PipelineOptions = {})
           `M ${f.mountains} V ${f.valleys} other ${f.unassigned}, Kawasaki residual ${f.kawasakiResidual.toExponential(2)} rad; ${f.reason}`,
       );
     }
-    if (ff.failEither > 0) {
-      say(`             ${ff.failEither} of ${ff.interiorVertices} interior vertices are not locally flat-foldable as drawn.`);
+    if (ff.failMaekawa > 0) {
+      // Combinatorial, not numerical: a vertex where M - V is not +/-2 cannot fold flat at all.
+      say(`             ${ff.failMaekawa} of ${ff.interiorVertices} interior vertices break Maekawa (M - V != +/-2).`);
       flatFoldable = false;
       r.refusal = {
         stage: "flatfold",
-        message: `Some of the folds in this pattern would not lie flat, so it would not fold. ${SEPARATE_LIMBS}`,
-        detail: `${ff.failEither} of ${ff.interiorVertices} interior vertices are not locally flat-foldable as drawn.`,
+        message: `Some vertices cannot fold flat: the mountain and valley counts around them do not balance. ${SEPARATE_LIMBS}`,
+        detail: `${ff.failMaekawa} of ${ff.interiorVertices} interior vertices fail Maekawa's theorem.`,
       };
+    } else if (ff.failKawasaki > 0) {
+      // Numerical: the optimiser stops short of exact convergence. Report it, print anyway.
+      const deg = (ff.maxResidual * 180) / Math.PI;
+      const mm = ff.maxResidual * 50;
+      const msg =
+        `${ff.failKawasaki} of ${ff.interiorVertices} interior vertices are off Kawasaki by ${deg.toFixed(4)} degrees ` +
+        `(${ff.maxResidual.toExponential(2)} rad, about ${mm.toFixed(3)} mm on a 50 mm crease). ` +
+        `That is smaller than the paper is thick. The pattern is printed; those creases may sit a fraction of a degree off flat.`;
+      say(`             note: ${msg}`);
+      r.warnings.push(msg);
     }
     if (!assigned) {
       const msg =

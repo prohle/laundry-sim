@@ -174,6 +174,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     {
       ok: result.ok,
       refusal: result.refusal,
+      warnings: result.warnings,
       image: result.image,
       coverage: result.coverage,
       tree: result.tree,

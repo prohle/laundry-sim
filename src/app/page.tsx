@@ -13,6 +13,8 @@ import { addLeaf, deleteLeaf, moveLeaf } from "@/lib/tree-edit";
 interface FoldResponse {
   ok: boolean;
   refusal: { stage: string; message: string; detail: string | null } | null;
+  /** Checks that did not pass but did not stop the pattern being printed. Shown above the pattern. */
+  warnings?: string[];
   image: { width: number; height: number; analysedWidth: number; analysedHeight: number } | null;
   tree: SkeletonTree | null;
   minimumTier: { tier: string | null; requiredLeaves: number; reason: string } | null;
@@ -396,7 +398,7 @@ function Outcome({
     if (!a || !a.tree || folding || i === selected) return;
     if (a.ok && a.pattern) {
       setData((d) => ({
-        ...d, ok: true, refusal: null, tree: a.tree, contraction: a.contraction,
+        ...d, ok: true, refusal: null, warnings: a.warnings, tree: a.tree, contraction: a.contraction,
         pattern: { svg: a.pattern!.svg, cp: a.pattern!.cp as CollapseCp },
         budget: { requested: a.budget, used: a.budget, leaves: a.leaves ?? 0 },
       }));
@@ -466,7 +468,11 @@ function Outcome({
           <div className="tiers__chips">
             {ladder.map((t, i) => {
               const isMin = t.attempted && !ladder.slice(0, i).some((x) => x.attempted);
-              const status = t.ok ? (t.sameAs ? `same as ${cap(t.sameAs)}` : isMin ? "minimum" : null) : t.short;
+              const status = t.ok
+                ? t.warnings?.length
+                  ? "printed, see note"
+                  : t.sameAs ? `same as ${cap(t.sameAs)}` : isMin ? "minimum" : null
+                : t.short;
               return (
                 <button
                   key={t.tier}
@@ -493,6 +499,15 @@ function Outcome({
       )}
 
       {views.length > 1 && <ViewsTable items={view.items} views={views} disagreement={disagreement} />}
+
+      {isResult && (data.warnings?.length ?? 0) > 0 && (
+        <div className="notice notice--warn" role="status">
+          <p className="notice__title">Printed with a note</p>
+          {data.warnings!.map((w, i) => (
+            <p key={i} className="notice__body">{w}</p>
+          ))}
+        </div>
+      )}
 
       <div className={`panel-split${showFold ? " panel-split--fold" : ""}`}>
         <div className="panel-col">

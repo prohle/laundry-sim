@@ -22,8 +22,10 @@ export interface TierAttempt {
   /** False when the tier is below the minimum: nothing was solved. */
   attempted: boolean;
   leaves: number | null;
-  /** The tier folds: a printable pattern with mountain/valley that passes the flat-foldability check. */
+  /** The tier folds: a printable pattern with mountain/valley. Warnings may still apply; see `warnings`. */
   ok: boolean;
+  /** Checks that did not pass but do not stop printing. Kawasaki residuals live here, in millimetres. */
+  warnings: string[];
   cpStatus: string | null;
   refusal: Refusal | null;
   /** A few words for a disabled chip. Null when the tier folds. */
@@ -81,6 +83,7 @@ function attemptFrom(t: (typeof TIERS)[number], a: Analysis, requiredLeaves: num
   return {
     tier: t.tier, budget: t.budget, attempted: true,
     leaves: a.tree?.leaves ?? null, ok, cpStatus,
+    warnings: a.warnings ?? [],
     refusal: a.refusal, short: ok ? null : shortReason(a.refusal, cpStatus, requiredLeaves),
     vertices: cp ? cp.vertices.length : null, creases: cp ? cp.creases.length : null,
     folds: cp ? foldDistribution(cp) : null,
@@ -95,7 +98,7 @@ function attemptFrom(t: (typeof TIERS)[number], a: Analysis, requiredLeaves: num
 function notRun(t: (typeof TIERS)[number], refusal: Refusal, requiredLeaves: number | null): TierAttempt {
   return {
     tier: t.tier, budget: t.budget, attempted: false, leaves: null, ok: false, cpStatus: null, refusal,
-    short: shortReason(refusal, null, requiredLeaves), vertices: null, creases: null, folds: null, tree: null,
+    warnings: [], short: shortReason(refusal, null, requiredLeaves), vertices: null, creases: null, folds: null, tree: null,
     contraction: null, sameAs: null, pattern: null, solverMs: null, totalMs: 0,
   };
 }

@@ -737,6 +737,10 @@ body {
   border-color: rgba(255, 80, 80, 0.25);
 }
 
+.notice--warn {
+  border-color: rgba(255, 190, 90, 0.3);
+}
+
 .notice__title {
   font-size: 11px;
   font-weight: 600;
