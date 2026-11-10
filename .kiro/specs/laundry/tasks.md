@@ -38,10 +38,25 @@ Ordered. Each task leaves the repo runnable. One task per turn. Verify with
 
 ## Phase 3 — Measure it (14–17 Nov)
 
-- [ ] 3.1 `sim/eval.py`: N seeded runs, success rate, time, wrinkle score.
+- [x] 3.1 `sim/eval.py`: N seeded runs, success rate, time, wrinkle score.
       Acceptance: same seed twice gives identical numbers.
 - [ ] 3.2 Baseline table: scripted fold, 20 runs. Write it to `sim/out/baseline.md`.
-- [ ] 3.3 Randomised drops: garment position and rotation from the seed.
+- [x] 3.3 Randomised drops: garment **position** ±0.04 m, yaw fixed at 0 for the baseline. Yaw is 3.6.
+- [x] 3.5 Front-corner detection at yaw 0.
+      Targets: the max-y vertex with x < centroid_x and the max-y vertex with x > centroid_x.
+      Ground truth is known from the drop parameters, so compare to it: each target within 0.02 m of
+      the true corner, separation > 0.6 m, over the 9 position drops (dx, dy in {-0.04, 0, 0.04}).
+      Acceptance: 9/9 pass and the table is printed.
+- [ ] 3.6 Yaw ±20°: rotated-frame corner detector. Later; not part of the baseline.
+- [ ] 3.7 Arm bases on the back wall, so the grasp targets are not at the yaw singularity.
+      Move both shoulder bases to (0.05, -0.20, 0.75) and (0.75, -0.20, 0.75), reaching forward and
+      down. Re-solve the ready pose. The target must be forward of the shoulder, not below it.
+      Acceptance: for the 9 position drops at yaw 0, max |shoulder| at the ready pose < 1.2 rad.
+- [ ] 3.4 Carry path reachable across the position drops.
+      `d` = an inward x move applied after the lift and undone before release, to keep the pinch off
+      the shoulder column. The path must not exceed any joint limit for offset in ±0.04 m at yaw 0.
+      Fix the trajectory, not the joint ranges and not the randomisation.
+      Acceptance: `sim/eval.py --runs 10 --seed 1` reports no NOREACH; the success rate is whatever it is.
 
 ## Phase 4 — Learn it (17–22 Nov)
 

@@ -134,11 +134,30 @@ def c_fold_folded():
     print(f"      {msg}")
 
 
+def c_eval_reproducible():
+    import eval as E
+    t0 = time.time()
+    a, b = E.evaluate(3, 5, TMP.name), E.evaluate(3, 5, TMP.name)
+    for ra, rb in zip(a, b):
+        assert ra["result"] == rb["result"], f"run {ra['run']}: {ra['result']} != {rb['result']}"
+        for k in ("yaw", "dx", "dy", "width", "depth", "ontop", "time", "wrinkle"):
+            assert np.allclose(ra[k], rb[k], atol=1e-6, equal_nan=True), f"run {ra['run']} {k}: {ra[k]} != {rb[k]}"
+    assert time.time() - t0 < 60, f"two 3-run evals took {time.time() - t0:.0f} s (limit 60)"
+
+
+def c_corners_front():
+    import eval as E
+    rows = E.corner_drops(TMP.name, [(0.04, -0.04)])   # one off-centre drop
+    for dx, dy, l, r, el, er, sep in rows:
+        assert el < 0.02 and er < 0.02, f"drop ({dx}, {dy}): corner error {el:.3f}/{er:.3f} m (limit 0.02)"
+        assert sep > 0.6, f"drop ({dx}, {dy}): separation {sep:.3f} m (limit 0.6)"
+
+
 CHECKS = [("garment-towel", lambda: garment_ok("towel")), ("garment-tee", c_tee),
           ("scene-loads", c_scene_loads), ("scene-parts", c_scene_parts),
           ("garment-on-shelf", c_on_shelf), ("render", c_render), ("deterministic", c_deterministic),
           ("arms-present", c_arms_present), ("arms-ready", c_arms_ready),
-          ("fold-folded", c_fold_folded)]
+          ("fold-folded", c_fold_folded), ("corners-front", c_corners_front), ("eval-reproducible", c_eval_reproducible)]
 
 
 def main():

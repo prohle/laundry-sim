@@ -45,13 +45,14 @@ def metrics(p0, p1, half_low):
 TOTAL_STEPS = 50 + 150 + 200 + 100 + 50 + 100     # control steps in run(), after SETTLE
 
 
-def run(m, trace=None, render=None, on_step=None):
+def run(m, trace=None, render=None, on_step=None, corners=None):
+    """corners: optional perceived (left, right) grasp targets; default is the fixed lay-down corners."""
     d = mujoco.MjData(m)
     mujoco.mj_forward(m, d)
     adr, n = qpos_adr(m)
     sl = slice(adr, adr + 3 * n)
     dof0 = int(m.jnt_dofadr[m.body_jntadr[m.flex_vertbodyid[m.flex_vertadr[0]]]])
-    ctrl, cs = arms.ready_pose(m, d)
+    ctrl, cs = arms.ready_pose(m, d, cs=corners)
     arms.apply(m, d, ctrl)
     for _ in range(SETTLE):
         mujoco.mj_step(m, d)
@@ -137,7 +138,8 @@ def run(m, trace=None, render=None, on_step=None):
     pos = np.array(d.flexvert_xpos)
     stretch = float((np.linalg.norm(pos[e[:, 0]] - pos[e[:, 1]], axis=1) / rest).max())
     res = metrics(pos0, pos, half_low)
-    res.update(nan=state["nan"], stretch=stretch, y_centre=float((pos[:, 1].max() + pos[:, 1].min()) / 2))
+    wrinkle = float(np.abs(np.linalg.norm(pos[e[:, 0]] - pos[e[:, 1]], axis=1) / rest - 1.0).mean())
+    res.update(nan=state["nan"], stretch=stretch, wrinkle=wrinkle, time=state["step"] * m.opt.timestep, y_centre=float((pos[:, 1].max() + pos[:, 1].min()) / 2))
     res["width_ok"] = res["x1"] >= WIDTH_MIN * res["x0"]
     res["depth_ok"] = res["y1"] <= DEPTH_MAX * res["y0"]
     res["top_ok"] = res["z_moved"] - res["z_still"] >= TOP_MIN

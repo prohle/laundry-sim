@@ -121,10 +121,12 @@ def corners(model, data, kind="towel"):
     return out
 
 
-def ready_pose(model, data, kind="towel"):
+def ready_pose(model, data, kind="towel", cs=None):
     """Hand-free ready pose by IK: pinch points HOVER above the two corners, fingers open.
+    cs: optional perceived corners (left, right); default is the fixed lay-down corners.
     Returns ({actuator: ctrl}, [corner_l, corner_r])."""
-    cs = corners(model, data, kind)
+    if cs is None:
+        cs = corners(model, data, kind)
     ctrl = {}
     for side, c in zip(SIDES, cs):
         for k, v in ik(side, c + np.array([0, 0, HOVER])).items():
