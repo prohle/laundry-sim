@@ -53,6 +53,14 @@ def towel_program(y_fold=None):
                  lower_z=fold.Z_DOWN, release=True, check="halves_overlap")]
 
 
+def tee_program(dx=0.0, inward=0.17, lift_z=fold.Z_LIFT):
+    """T-shirt, two steps (task 5.6): both sleeves in, then the body in half. Body x-range is the lay-down 0.20-0.60 shifted by the drop."""
+    return [dict(name="sleeves_in", grasp=["sleeve_l", "sleeve_r"], lift_z=lift_z, carry=(0.0, 0.0), inward=inward,
+                 lower_z=fold.Z_DOWN, release=True, body_x=(0.20 + dx, 0.60 + dx), check="sleeve_inside"),
+            dict(name="body_half", grasp=["hem_l", "hem_r"], lift_z=lift_z, carry=(0.0, 0.0), carry_to_y=0.25,
+                 lower_z=fold.Z_DOWN, release=True, front_only=False, check="halves_overlap")]
+
+
 def run_program(m, program, **kw):
     """Execute the steps in order. kw is passed to fold.run (corners, trace, render, on_step, landmarks)."""
     return fold.run(m, program=program, **kw)

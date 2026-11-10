@@ -32,10 +32,10 @@ def drop(rng):
     return 0.0, float(rng.uniform(-OFFSET, OFFSET)), float(rng.uniform(-OFFSET, OFFSET))
 
 
-def posed_obj(path, yaw, dx, dy):
-    """Write the towel OBJ rotated by yaw about its centre and shifted by (dx, dy), in the garment's XZ plane
+def posed_obj(path, yaw, dx, dy, kind="towel"):
+    """Write the garment OBJ rotated by yaw about its centre and shifted by (dx, dy), in the garment's XZ plane
     (which scene.py maps to world xy with the same orientation)."""
-    verts, faces, _ = garment.build("towel")
+    verts, faces, _ = garment.build(kind)
     xs, zs = [v[0] for v in verts], [v[2] for v in verts]
     cx, cz = (min(xs) + max(xs)) / 2, (min(zs) + max(zs)) / 2
     c, s = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))
@@ -161,8 +161,157 @@ def friction_table(a, out):
     return 0
 
 
+def tee_run(i, seed, tmp, inward=0.17, lift_z=fold.Z_LIFT):
+    """Task 5.6: two-step tee program on a tee dropped at (dx, dy), yaw 0. Landmarks are ground truth from the drop
+    (the mesh landmark plus the drop offset), not perceived; the towel path perceives its corners."""
+    yaw, dx, dy = drop(np.random.default_rng(seed + i))
+    obj = os.path.join(tmp, "tee.obj")
+    posed_obj(obj, yaw, dx, dy, "tee")
+    m = mujoco.MjModel.from_xml_string(scene.build(obj, "tee"))
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+    ox, oy = scene._offset("tee")
+    pos = np.array(d.flexvert_xpos)
+    lm = {n: (ox + x + dx, oy + z + dy) for n, (x, z) in garment.build_full("tee")[3].items()}
+    cs = [pos[np.argmin(np.hypot(pos[:, 0] - lm[n][0], pos[:, 1] - lm[n][1]))].copy() for n in ("sleeve_l", "sleeve_r")]
+    row = dict(run=i, dx=dx, dy=dy, steps=[], result="NOREACH")
+    try:
+        r = program.run_program(m, program.tee_program(dx, inward, lift_z), corners=cs, landmarks=lm, kind="tee", whole_checks=False)
+    except ValueError as e:
+        row["why"] = str(e)
+        return row
+    row.update(steps=r["steps"], result="FOLDED" if r["folded"] else "FAILED", wrinkle=r["wrinkle"])
+    return row
+
+
+def tee_table(a):
+    t0 = time.time()
+    with tempfile.TemporaryDirectory() as tmp:
+        rows = [tee_run(i, a.seed, tmp, a.inward, a.lift) for i in range(a.runs)]
+    L = [f"Simulated tee fold, two-step program (sleeves_in, body_half), kinematic grasp. {a.runs} runs, seed {a.seed}, inward {a.inward}, lift {a.lift}.",
+         "Yaw 0, position +-0.04 m. Landmarks from the drop (ground truth). No tuning on these seeds beyond what is stated.", "",
+         "run    dx     dy   sleeves_in  body_half  result"]
+    names = ("sleeves_in", "body_half")
+    for r in rows:
+        cell = {s["name"]: ("ok" if s["ok"] else ("NOREACH" if "noreach" in s["numbers"] else "fail")) for s in r["steps"]}
+        L.append(f"{r['run']:>3} {r['dx']:>6.3f} {r['dy']:>6.3f}  " + "  ".join(f"{cell.get(n, '-'):<10}" for n in names) + f" {r['result']}")
+        for s in r["steps"]:
+            L.append(f"      {s['name']}: {s['numbers']}")
+        if r.get("why"):
+            L.append(f"      {r['why']}")
+    n = len(rows)
+    L += ["", "step pass: " + ", ".join(f"{nm} {sum(any(s['name'] == nm and s['ok'] for s in r['steps']) for r in rows)}/{n}" for nm in names),
+          f"success: {nfolded(rows)}/{n}", "Simulated, not a physical fold."]
+    print("\n".join(L))
+    print(f"wall: {time.time() - t0:.0f} s")
+    return 0
+
+
+DROPS9 = [(a, b) for a in (-0.04, 0.0, 0.04) for b in (-0.04, 0.0, 0.04)]
+
+
+def scan_margin(lift, inward, z_down):
+    """Smallest distance to a joint limit (rad) along the towel path over the 9 drops, and the joint that sets it.
+    Path per arm: ready hover over the corner -> lift -> inward -> carry to Y_FOLD -> lower; straight lines in pinch space.
+    A target out of reach counts as margin -1."""
+    import arms
+    saved, lim = dict(arms.RANGES), dict(arms.RANGES)
+    arms.RANGES = {k: (-9.0, 9.0) for k in saved}
+    worst, joint = 9.0, ""
+    try:
+        for dx, dy in DROPS9:
+            for side, c in zip(arms.SIDES, true_corners(dx, dy)):
+                z0 = scene.SHELF_Z + scene.SHELF_T / 2 + 0.015
+                sg = 1.0 if side == "l" else -1.0
+                way = [(c[0], c[1], z0 + arms.HOVER), (c[0], c[1], lift), (c[0] + sg * inward, c[1], lift),
+                       (c[0] + sg * inward, fold.Y_FOLD, lift), (c[0] + sg * inward, fold.Y_FOLD, z_down)]
+                for a, b in zip(way, way[1:]):
+                    for t in np.linspace(0, 1, 11):
+                        try:
+                            q = arms.ik(side, tuple(np.array(a) + t * (np.array(b) - np.array(a))))
+                        except ValueError:
+                            return -1.0, "reach"
+                        for k in arms.HINGES:
+                            m_ = min(q[k] - lim[k][0], lim[k][1] - q[k])
+                            if m_ < worst:
+                                worst, joint = m_, k
+    finally:
+        arms.RANGES = saved
+    return worst, joint
+
+
+def scan_table():
+    """Task 5.8: joint-limit scan over (Z_LIFT, INWARD) for the towel path at the new geometry. Margin = rad to the nearest limit."""
+    z_down = scene.SHELF_Z + scene.SHELF_T / 2 + 0.06
+    lifts = [round(z_down + 0.02 * k, 3) for k in range(0, 13)]
+    ins = [round(0.025 * k, 3) for k in range(0, 11)]
+    print(f"joint-limit scan, towel path, 9 drops, Z_DOWN {z_down:.2f} (shelf top + 0.06), Y_FOLD {fold.Y_FOLD}; margin to nearest limit in rad (limiting joint)")
+    print("lift\\inward " + " ".join(f"{i:>11.3f}" for i in ins))
+    best = (-9.0, None)
+    for lf in lifts:
+        row = []
+        for i in ins:
+            mg, j = scan_margin(lf, i, z_down)
+            row.append(f"{mg:>6.2f} {j[:5]:<4}")
+            if mg > best[0]:
+                best = (mg, (lf, i, j))
+        print(f"{lf:>10.2f}   " + " ".join(row))
+    print(f"best: margin {best[0]:.3f} rad ({best[1][2]}) at Z_LIFT {best[1][0]}, INWARD {best[1][1]}")
+    return 0
+
+
+def reach_table():
+    """Task 5.8: tee at the 9 position drops; ready pose over each of hem_l/hem_r and shoulder_l/shoulder_r; settled pinch distance (m)."""
+    import arms
+    names = (("hem_l", "hem_r"), ("shoulder_l", "shoulder_r"))
+    print("tee reach: pinch-to-landmark vertex distance after 200 steps at the ready pose (hover 0.05 included); limit 0.08")
+    print("   dx     dy   " + "  ".join(f"{n:>10}" for pr in names for n in pr))
+    ok = 0
+    with tempfile.TemporaryDirectory() as tmp:
+        for dx, dy in DROPS9:
+            obj = os.path.join(tmp, "tee.obj")
+            posed_obj(obj, 0.0, dx, dy, "tee")
+            m = mujoco.MjModel.from_xml_string(scene.build(obj, "tee"))
+            ox, oy = scene._offset("tee")
+            lm = {n: (ox + x + dx, oy + z + dy) for n, (x, z) in garment.build_full("tee")[3].items()}
+            cells, good = [], True
+            for pr in names:
+                d = mujoco.MjData(m)
+                mujoco.mj_forward(m, d)
+                pos = np.array(d.flexvert_xpos)
+                cs = [pos[np.argmin(np.hypot(pos[:, 0] - lm[n][0], pos[:, 1] - lm[n][1]))].copy() for n in pr]
+                try:
+                    ctrl, cs = arms.ready_pose(m, d, cs=cs)
+                except ValueError as e:
+                    cells += [f"NOREACH"] * 2
+                    good = False
+                    print(f"      {pr}: {e}")
+                    continue
+                arms.apply(m, d, ctrl)
+                for _ in range(200):
+                    mujoco.mj_step(m, d)
+                if (dx, dy) == (0.0, 0.0) and pr == names[0]:   # frame: both arms hovering over the tee hem
+                    from PIL import Image
+                    rr = mujoco.Renderer(m, height=720, width=1280)
+                    rr.update_scene(d, camera="inside")
+                    os.makedirs(os.path.join(os.path.dirname(os.path.abspath(__file__)), "out"), exist_ok=True)
+                    Image.fromarray(rr.render()).save(os.path.join(os.path.dirname(os.path.abspath(__file__)), "out", "arms.png"))
+                    rr.close()
+                for s, c in zip(arms.SIDES, cs):
+                    dist = float(np.linalg.norm(arms.pinch(m, d, s) - c))
+                    cells.append(f"{dist:.3f}")
+                    good &= dist < 0.08
+            ok += good
+            print(f"{dx:>6.2f} {dy:>6.2f}   " + "  ".join(f"{c:>10}" for c in cells))
+    print(f"pass: {ok}/9")
+    return 0 if ok == 9 else 1
+
+
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--garment", choices=("towel", "tee"), default="towel")
+    ap.add_argument("--inward", type=float, default=0.17, help="tee: sleeve inward distance")
+    ap.add_argument("--lift", type=float, default=fold.Z_LIFT, help="tee: lift height")
     ap.add_argument("--runs", type=int, default=10)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--corners", action="store_true", help="print the 9-drop corner table (task 3.5) and exit")
@@ -171,8 +320,16 @@ def main():
     ap.add_argument("--D", type=float, default=None, help=f"relative policy depth, default {D_CHOSEN}")
     ap.add_argument("--experiment", action="store_true", help="4.2/4.3: fit D on seeds 1-5, test on seeds 6-10, write out/policy.md")
     ap.add_argument("--clean", action="store_true", help="4.6: scripted, patch 0.12 and 0.16, seeds 11-20 x 10 runs, write out/clean.md")
+    ap.add_argument("--scan", action="store_true", help="5.8: joint-limit scan over Z_LIFT x INWARD for the towel path")
+    ap.add_argument("--reach", action="store_true", help="5.8: tee reach table at the 9 drops")
     a = ap.parse_args()
     out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "out")
+    if a.scan:
+        return scan_table()
+    if a.reach:
+        return reach_table()
+    if a.garment == "tee":
+        return tee_table(a)
     if a.clean:
         used = {s + i for s in TEST_SEEDS for i in range(10)}   # rng seeds already drawn in the seeds 6-10 runs
         L = [f"Simulated towel fold, scripted policy, no tuning. Seeds 11-20 x 10 runs per config, {time.strftime('%Y-%m-%d')}.",

@@ -87,7 +87,7 @@ def c_on_shelf():
     _, _, p = settle(0)
     assert not np.isnan(p).any(), "NaN in flexvert_xpos"
     lo, hi = p[:, 2].min(), p[:, 2].max()
-    assert 0.55 <= lo and hi <= 0.62, f"z-range [{lo:.3f}, {hi:.3f}] outside [0.55, 0.62]"
+    assert 0.69 <= lo and hi <= 0.76, f"z-range [{lo:.3f}, {hi:.3f}] outside [0.69, 0.76]"
 
 
 def c_render():
@@ -133,7 +133,7 @@ def c_arms_ready():
         p = arms.pinch(m, d, s)
         dist = np.linalg.norm(p - c)
         assert dist <= 0.08, f"arm_{s} pinch {dist:.3f} m from its corner (limit 0.08)"
-        assert p[2] > 0.58, f"arm_{s} pinch z {p[2]:.3f} <= 0.58"
+        assert p[2] > 0.72, f"arm_{s} pinch z {p[2]:.3f} <= 0.72"
 
 
 def c_fold_folded():

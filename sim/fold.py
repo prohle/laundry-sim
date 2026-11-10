@@ -22,9 +22,9 @@ import garment
 ALPHA = 0.35          # fraction of the remaining distance closed per step
 MAX_STEP = 0.02       # per-step cap on a grasped vertex, metres
 GRASP_RADIUS = 0.16   # vertices within this xy distance of a corner are held (corner row only)
-Z_LIFT, Z_DOWN = 0.66, 0.62  # base at y=-0.08: lifting higher (0.72-0.85) pushes 'upper' past -2.4 during the carry; 0.66 is the lowest lift that clears
-INWARD = 0.12         # both pinch points move this far toward the cabinet centre after the lift and stay there through release (adjustment needed: lifting higher failed)
-Y_FOLD = -0.05        # pinch y at the far side; the towel spans y -0.15..0.25, so 0.18 would not fold it. -0.10 is past the elbow limit
+Z_LIFT, Z_DOWN = 0.80, 0.76  # task 5.8: from `eval.py --scan` (towel path, 9 drops): lowest lift with 0.04 m clearance over the lower height; margin 0.19 rad at 'upper'
+INWARD = 0.10         # smallest inward move that reaches the scan's plateau at Z_LIFT 0.80 (more inward does not improve the margin)
+Y_FOLD = -0.05        # pinch y at the far side; the towel spans y -0.15..0.25, so 0.18 would not fold it
 SETTLE = 200          # not counted in the ~550 fold steps
 WIDTH_MIN, DEPTH_MAX, TOP_MIN = 0.90, 0.60, 0.002  # x1/x0, y1/y0, metres
 TRACE_EVERY = 25
@@ -46,7 +46,7 @@ def metrics(p0, p1, half_low):
 TOTAL_STEPS = 50 + 150 + 50 + 200 + 100 + 50 + 100     # control steps in run(), after SETTLE
 
 
-def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, friction=False, program=None, landmarks=None):
+def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, friction=False, program=None, landmarks=None, kind="towel", whole_checks=True):
     """corners: optional perceived (left, right) grasp targets; default is the fixed lay-down corners.
     y_fold: optional fold target y for the pinch points; default Y_FOLD.
     program: optional list of steps (see program.py); None keeps the single scripted trajectory.
@@ -76,7 +76,7 @@ def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, fri
     tip = {s: arms.pinch(m, d, s) for s in arms.SIDES}
     state = {"step": 0, "grip": arms.GRIP_OPEN, "grasp": False, "nan": False, "tear": 0.0, "mid": False, "maxq": {}}
     front = np.where(pos0[:, 1] >= pos0[:, 1].max() - 1e-6)[0]
-    verts, faces, _ = garment.build("towel")
+    verts, faces, _ = garment.build(kind)
     e = np.array(sorted({tuple(sorted((f[i], f[(i + 1) % 3]))) for f in faces for i in range(3)}))
     # flex vertex order equals OBJ order for this mesh; edge rest lengths from the OBJ
     vv = np.array(verts)
@@ -165,36 +165,42 @@ def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, fri
         ctx = dict(half_low=half_low, ymid=ymid)
         for k, st in enumerate(program):
             pre = np.array(d.flexvert_xpos)
-            tg = [P.resolve(g, lm) for g in st["grasp"]]
-            if k > 0:                                   # re-approach: open, rise, move over the grasp points, descend
-                state["grip"] = arms.GRIP_OPEN; state["grasp"] = False
-                move(at(z=Z_LIFT), 50)
-                move({s: np.array([t[0], t[1], Z_LIFT]) for s, t in zip(arms.SIDES, tg)}, 100)
-                move({s: np.array([t[0], t[1], tip0z[s]]) for s, t in zip(arms.SIDES, tg)}, 50)
-            held.clear()
-            for side, c in zip(arms.SIDES, tg):
-                p = arms.pinch(m, d, side)
-                msk = np.hypot(pre[:, 0] - c[0], pre[:, 1] - c[1]) <= GRASP_RADIUS
-                if st.get("front_only", True):
-                    msk &= pre[:, 1] > ymid
-                idx = np.where(msk)[0]
-                held.append((side, idx, pre[idx, :2] - p[:2]))
-            state["grip"] = 0.0; state["grasp"] = True
-            move(at(), 50)                              # close, settle
-            move(at(z=st["lift_z"]), 150)               # lift
-            if st.get("inward"):
-                move(at(inward=st["inward"]), 50)
-            cdx, cdy = st["carry"]
-            if "carry_to_y" in st:
-                move(at(y=st["carry_to_y"]), 200)
-            elif cdx or cdy:
-                move({s: tip[s] + np.array([cdx, cdy, 0.0]) for s in arms.SIDES}, 200)
-            move(at(z=st["lower_z"]), 100)              # lower
-            if st.get("release", True):
-                state["grip"] = arms.GRIP_OPEN; state["grasp"] = False
-                move(at(z=st["lift_z"]), 50)            # release, retract
-            for _ in range(100):                        # let the cloth settle
-                step(tip)
+            try:
+                tg = [P.resolve(g, lm) for g in st["grasp"]]
+                if k > 0:                                   # re-approach: open, rise, move over the grasp points, descend
+                    state["grip"] = arms.GRIP_OPEN; state["grasp"] = False
+                    move(at(z=Z_LIFT), 50)
+                    move({s: np.array([t[0], t[1], Z_LIFT]) for s, t in zip(arms.SIDES, tg)}, 100)
+                    move({s: np.array([t[0], t[1], tip0z[s]]) for s, t in zip(arms.SIDES, tg)}, 50)
+                held.clear()
+                for side, c in zip(arms.SIDES, tg):
+                    p = arms.pinch(m, d, side)
+                    msk = np.hypot(pre[:, 0] - c[0], pre[:, 1] - c[1]) <= GRASP_RADIUS
+                    if st.get("front_only", True):
+                        msk &= pre[:, 1] > ymid
+                    idx = np.where(msk)[0]
+                    held.append((side, idx, pre[idx, :2] - p[:2]))
+                state["grip"] = 0.0; state["grasp"] = True
+                move(at(), 50)                              # close, settle
+                move(at(z=st["lift_z"]), 150)               # lift
+                if st.get("inward"):
+                    move(at(inward=st["inward"]), 50)
+                cdx, cdy = st["carry"]
+                if "carry_to_y" in st:
+                    move(at(y=st["carry_to_y"]), 200)
+                elif cdx or cdy:
+                    move({s: tip[s] + np.array([cdx, cdy, 0.0]) for s in arms.SIDES}, 200)
+                move(at(z=st["lower_z"]), 100)              # lower
+                if st.get("release", True):
+                    state["grip"] = arms.GRIP_OPEN; state["grasp"] = False
+                    move(at(z=st["lift_z"]), 50)            # release, retract
+                for _ in range(100):                        # let the cloth settle
+                    step(tip)
+            except ValueError as ex:
+                if len(program) == 1 and whole_checks:
+                    raise                                   # single-step towel path keeps its NOREACH behaviour
+                steps_out.append(dict(name=st["name"], ok=False, numbers=dict(noreach=str(ex))))
+                break
             post = np.array(d.flexvert_xpos)
             if st.get("check"):
                 ok, nums = P.CHECKS[st["check"]](pre, post, ctx, st)
@@ -224,7 +230,7 @@ def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, fri
     res["folded"] = (not state["nan"]) and res["width_ok"] and res["depth_ok"] and res["top_ok"]
     if program is not None and not friction:
         res["steps"] = steps_out
-        res["folded"] = res["folded"] and all(s["ok"] for s in steps_out)
+        res["folded"] = (res["folded"] if whole_checks else not state["nan"]) and len(steps_out) == len(program) and all(s["ok"] for s in steps_out)
     if render:
         render("fold_end", d)
     return res

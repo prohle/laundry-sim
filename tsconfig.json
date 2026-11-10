@@ -38,6 +38,10 @@
   ],
   "exclude": [
     "node_modules",
+    "src/lib",
+    "src/engine",
+    "tools",
+    "sim",
     "_local"
   ]
 }

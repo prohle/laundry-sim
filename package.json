@@ -1,27 +1,20 @@
 {
-  "name": "fold",
+  "name": "laundry-sim",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "test": "node --test src/lib/skeleton.test.ts src/lib/skeleton.photo.test.ts src/lib/tiers.test.ts src/lib/select.test.ts src/lib/contract.test.ts src/lib/flatfold.test.ts src/lib/properties.test.ts src/lib/pipeline.timeout.test.ts src/lib/refusals.test.ts src/lib/edited-tree.test.ts src/lib/tree-edit.test.ts src/lib/collapse.test.ts src/lib/steps.test.ts src/lib/segment.test.ts src/lib/views.test.ts src/lib/budget.test.ts src/lib/ladder.test.ts src/lib/parts.test.ts src/lib/multisheet.test.ts src/lib/net.test.ts src/lib/netfold.test.ts src/lib/hull.test.ts src/lib/mesh.test.ts tools/cp-to-svg.test.ts tools/fold.test.ts",
-    "check": "tools/check.sh"
+    "lint": "next lint"
   },
   "dependencies": {
-    "@types/three": "0.187.0",
-    "jpeg-js": "0.4.4",
     "next": "16.4.5",
-    "pngjs": "7.0.0",
     "react": "19.2.0",
-    "react-dom": "19.2.0",
-    "three": "0.187.0"
+    "react-dom": "19.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
-    "@types/pngjs": "6.0.5",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "fast-check": "4.10.2",

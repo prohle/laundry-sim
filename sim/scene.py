@@ -1,7 +1,7 @@
 """Cabinet, shelf, garment, cameras, lights -> MJCF string.
 
-Cabinet: x 0..0.80, y -0.25..0.35 (back wall at -y, open front at +y), z 0..1.10.
-Shelf top at z = 0.56. Garment is generated in XZ and rotated flat onto the shelf.
+Cabinet: x 0..1.20, y -0.35..0.45 (back wall at -y, open front at +y), z 0..1.40.
+Shelf top at z = 0.70. Garment is generated in XZ and rotated flat onto the shelf.
 """
 import math
 import os
@@ -9,13 +9,13 @@ import os
 import arms
 import garment as G
 
-W, D, H, T = 0.80, 0.60, 1.10, 0.02
-Y0 = -0.25                      # back of the cabinet
-CX, CY = W / 2, Y0 + D / 2      # shelf centre (0.40, 0.05)
-SHELF_Z, SHELF_T = 0.55, 0.02
+W, D, H, T = 1.20, 0.80, 1.40, 0.02
+Y0 = -0.35                      # back of the cabinet
+CX, CY = W / 2, Y0 + D / 2      # shelf centre (0.60, 0.05)
+SHELF_Z, SHELF_T = 0.69, 0.02
 CAMERAS = {  # name: (position, target, fovy)
-    "inside": ((0.40, 0.85, 0.75), (0.40, 0.05, 0.60), 40),
-    "top": ((0.40, 0.05, 1.05), (0.40, 0.05, 0.55), 50),
+    "inside": ((0.60, 1.30, 1.05), (0.60, 0.05, 0.75), 45),
+    "top": ((0.60, 0.05, 1.30), (0.60, 0.05, 0.70), 55),
 }
 
 
@@ -79,7 +79,7 @@ def build(obj, kind="towel", pads=False, grip_kp=None):
   <worldbody>
     <light name="key" pos="-0.5 1.0 1.6" dir="0.8 -1.0 -1.4" diffuse="0.9 0.9 0.85" castshadow="false"/>
     <light name="fill" pos="1.5 0.8 0.9" dir="-1.2 -0.6 -0.5" diffuse="0.25 0.25 0.3" castshadow="false"/>
-    <light name="lamp" pos="0.40 0.05 0.95" dir="0 0 -1" diffuse="0.35 0.28 0.18" castshadow="false"/>
+    <light name="lamp" pos="0.60 0.05 1.25" dir="0 0 -1" diffuse="0.35 0.28 0.18" castshadow="false"/>
     <geom name="floor" type="plane" size="2 2 0.1" rgba="0.25 0.25 0.27 1" contype="0" conaffinity="0"/>
     {chr(10).join("    " + g for g in geoms).strip()}
     {cams}

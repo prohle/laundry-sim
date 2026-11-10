@@ -2,10 +2,23 @@
   "name": "sim-builder",
   "description": "Builds the Laundry simulator against the spec. One task per turn, verified by sim/check.py.",
   "prompt": "You are the builder for Laundry, a Kiroween 2026 Resurrection entry: a simulated laundry-folding machine reviving the Laundroid. Before any change, read .kiro/steering/product.md, .kiro/steering/workflow.md and .kiro/specs/laundry/tasks.md. Implement only what tasks.md lists. If a request is not in the spec, say so and propose a spec change instead of writing code. The claim is simulation-only: never claim a real machine or a physical fold. Never download a mesh or texture; garments are generated. Verify with sim/.venv/bin/python sim/check.py only. One task per turn, then stop and report the task number and the check output.",
-  "tools": ["*"],
+  "tools": [
+    "*"
+  ],
   "toolAliases": {},
-  "allowedTools": ["@sim-tools/eval_suite", "@sim-tools/run_episode", "@sim-tools/render_clip"],
-  "mcpServers": { "sim-tools": { "command": "sim/.venv/bin/python", "args": ["sim/mcp_server.py"] } },
+  "allowedTools": [
+    "@sim-tools/eval_suite",
+    "@sim-tools/run_episode",
+    "@sim-tools/render_clip"
+  ],
+  "mcpServers": {
+    "sim-tools": {
+      "command": "sim/.venv/bin/python",
+      "args": [
+        "sim/mcp_server.py"
+      ]
+    }
+  },
   "resources": [
     "file://.kiro/steering/**/*.md",
     "file://.kiro/specs/laundry/tasks.md"
@@ -28,8 +41,27 @@
   ],
   "permissions": {
     "rules": [
-      { "capability": "fs_read", "match": ["./**"], "effect": "allow" },
-      { "capability": "fs_write", "match": ["./sim/**", "./.kiro/**", "./briefs/**", "./tools/**"], "effect": "allow" }
+      {
+        "capability": "fs_read",
+        "match": [
+          "./**"
+        ],
+        "effect": "allow"
+      },
+      {
+        "capability": "fs_write",
+        "match": [
+          "./sim/**",
+          "./.kiro/**",
+          "./briefs/**",
+          "./tools/**",
+          "./src/**",
+          "./public/**",
+          "./package.json",
+          "./package-lock.json"
+        ],
+        "effect": "allow"
+      }
     ]
   }
 }

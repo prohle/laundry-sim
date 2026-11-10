@@ -1,7 +1,7 @@
 """Two arms, mirrored on the cabinet's side walls, and their ready pose.
 
-Per arm, base to tip: fixed base box -> shoulder yaw (z) -> upper link 0.24 (hinge y) -> elbow (y)
--> forearm 0.20 -> wrist (y) -> palm + two fingers on slide joints (opening 0.06 m, along the hand's swing axis so they stay clear of the wall).
+Per arm, base to tip: fixed base box -> shoulder yaw (z) -> upper link 0.35 (hinge y) -> elbow (y)
+-> forearm 0.30 -> wrist (y) -> palm + two fingers on slide joints (opening 0.06 m, along the hand's swing axis so they stay clear of the wall).
 Hinge convention: a link hangs along -z at q = 0 and swings toward +x (forward) for negative q.
 The arms do not collide with anything yet (contype 0); contact comes with the grasp in 2.2.
 """
@@ -9,14 +9,14 @@ import math
 
 import numpy as np
 
-SIDES = {"l": (0.05, 90.0), "r": (0.75, 90.0)}   # shoulder x, heading of local +x (deg): both reach forward (+y); mirrored about x = 0.40
-SHOULDER_Y, SHOULDER_Z = -0.08, 0.75             # forward of the back wall, so the grasp targets are off the yaw singularity
-L1, L2, TOOL = 0.24, 0.20, 0.06                  # upper link, forearm, wrist -> pinch point
+SIDES = {"l": (0.15, 90.0), "r": (1.05, 90.0)}   # shoulder x, heading of local +x (deg): both reach forward (+y); mirrored about x = 0.60
+SHOULDER_Y, SHOULDER_Z = -0.10, 0.95             # forward of the back wall, so the grasp targets are off the yaw singularity
+L1, L2, TOOL = 0.35, 0.30, 0.06                  # upper link, forearm, wrist -> pinch point
 HOVER = 0.05                                     # ready pose: pinch point this far above the corner
 ARMATURE = 0.02                                  # reflected inertia; keeps kv stable at dt = 0.004 with Euler
 KP, KV, KV_SLIDE = 40, 1.5, 1.0
 GRIP_OPEN = 0.03                                 # each finger; two fingers -> 0.06 m opening
-RANGES = {"shoulder": (-2.2, 2.2), "upper": (-2.4, 1.0), "elbow": (-0.3, 2.8), "wrist": (-2.2, 2.2),
+RANGES = {"shoulder": (-2.7, 2.7), "upper": (-2.4, 1.0), "elbow": (-0.3, 2.8), "wrist": (-2.2, 2.2),
           "grip": (0.0, GRIP_OPEN)}
 HINGES = ("shoulder", "upper", "elbow", "wrist")
 GEOM = 'contype="0" conaffinity="0"'
@@ -37,10 +37,10 @@ def _arm(side, pads=False):
         <geom name="{n}_housing" type="cylinder" size="0.025 0.012" rgba="0.35 0.35 0.38 1" {GEOM}/>
         <body name="{n}_upper_body">
           <joint name="{n}_upper" type="hinge" axis="0 1 0" range="{r['upper'][0]} {r['upper'][1]}" {j}/>
-          <geom name="{n}_upper_link" type="box" pos="0 0 -0.12" size="0.015 0.015 0.12" rgba="0.9 0.55 0.1 1" {GEOM}/>
+          <geom name="{n}_upper_link" type="box" pos="0 0 -{L1 / 2}" size="0.015 0.015 {L1 / 2}" rgba="0.9 0.55 0.1 1" {GEOM}/>
           <body name="{n}_fore_body" pos="0 0 -{L1}">
             <joint name="{n}_elbow" type="hinge" axis="0 1 0" range="{r['elbow'][0]} {r['elbow'][1]}" {j}/>
-            <geom name="{n}_forearm" type="box" pos="0 0 -0.10" size="0.0125 0.0125 0.10" rgba="0.9 0.55 0.1 1" {GEOM}/>
+            <geom name="{n}_forearm" type="box" pos="0 0 -{L2 / 2}" size="0.0125 0.0125 {L2 / 2}" rgba="0.9 0.55 0.1 1" {GEOM}/>
             <body name="{n}_hand" pos="0 0 -{L2}">
               <joint name="{n}_wrist" type="hinge" axis="0 1 0" range="{r['wrist'][0]} {r['wrist'][1]}" {j}/>
               <geom name="{n}_palm" type="box" pos="0 0 -0.01" size="0.025 0.02 0.01" rgba="0.2 0.2 0.22 1" {GEOM}/>

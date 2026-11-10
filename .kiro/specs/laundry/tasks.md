@@ -104,9 +104,19 @@ target y and the lift height. A controller, not RL — stated as such.
 - [x] 5.5 Fold-program executor: a fold is a list of steps (grasp, carry, release), each with its own
       check. Replaces the single scripted trajectory.
       Acceptance: the towel still folds 55/55 via a one-step program.
+- [ ] 5.8 Scale the machine to a real garment.
+      Reach is 0.44 m; a 0.60 m tee's hem and shoulders are 0.45 m from the arm base, so no program
+      reaches them. Enlarge: cabinet 1.20 x 0.80 x 1.40, shelf at 0.70, links 0.35 + 0.30 (reach 0.65),
+      bases at (0.15, -0.10, 0.95) and (1.05, -0.10, 0.95). Re-solve the towel trajectory and the tee
+      program. The towel must still fold 55/55 on the unseen drops after scaling.
+      Acceptance: towel 55/55; tee reachable (grip-to-landmark < 0.08 m at the hem and shoulders).
 - [ ] 5.6 T-shirt fold program: left sleeve in, right sleeve in, body in half. Gate: >= 6/10 on 10
       unseen drops, or the multi-garment claim is dropped.
 - [ ] 5.7 Pants and shorts programs, only if 5.6 passes.
+
+- [~] 5.9 Live page: replace the retired Fold Next.js page with a Laundry product page (hero video,
+      result toggle, limits, run instructions, Kiro, footer). Rename the package. No Fold references.
+      Acceptance: `npm run build` exits 0; the page returns 200 and contains "simulated" and "55/55".
 
 ## Phase 6 — Kiro artefacts (continuous)
 

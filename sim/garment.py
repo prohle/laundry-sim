@@ -12,7 +12,7 @@ import math
 
 DEFAULTS = {
     "towel": dict(width=0.70, height=0.40, cell=0.035, mass=0.48),
-    "tee": dict(width=0.50, height=0.70, sleeve=0.22, sleeve_depth=0.18, cell=0.035, mass=0.30),
+    "tee": dict(width=0.50, height=0.70, sleeve=0.20, sleeve_depth=0.18, cell=0.035, mass=0.30),
     "pants": dict(width=0.44, height=0.95, inseam=0.55, gap=0.05, cell=0.035, mass=0.45),
     "shorts": dict(width=0.44, height=0.55, inseam=0.28, gap=0.05, cell=0.035, mass=0.25),
     "dress": dict(width=0.40, height=1.00, hem=0.70, cell=0.035, mass=0.40),
