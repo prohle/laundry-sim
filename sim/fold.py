@@ -25,7 +25,7 @@ GRASP_RADIUS = 0.12   # vertices within this xy distance of a corner are held (c
 Z_LIFT, Z_DOWN = 0.72, 0.62  # 0.78 puts the elbow past its limit when the pinch passes under the shoulder
 Y_FOLD = -0.05        # pinch y at the far side; the towel spans y -0.15..0.25, so 0.18 would not fold it. -0.10 is past the elbow limit
 SETTLE = 200          # not counted in the ~550 fold steps
-RATIO_MAX, OVERLAP_MIN = 0.6, 0.6
+WIDTH_MIN, DEPTH_MAX, TOP_MIN = 0.90, 0.60, 0.002  # x1/x0, y1/y0, metres
 TRACE_EVERY = 25
 
 
@@ -35,12 +35,11 @@ def qpos_adr(m):
     return int(m.jnt_qposadr[m.body_jntadr[b]]), int(m.flex_vertnum[0])
 
 
-def metrics(y0, y1, ymid, half_low):
-    """y-extent before/after, ratio, and overlap of the two halves' y-intervals after the fold."""
-    before, after = y0.max() - y0.min(), y1.max() - y1.min()
-    a, b = y1[half_low], y1[~half_low]
-    overlap = max(0.0, min(a.max(), b.max()) - max(a.min(), b.min())) / min(a.max() - a.min(), b.max() - b.min())
-    return before, after, after / before, overlap
+def metrics(p0, p1, half_low):
+    """Six numbers: x and y extent before/after, mean z of the moved and the stationary half after."""
+    ext = lambda p, k: p[:, k].max() - p[:, k].min()
+    return dict(x0=ext(p0, 0), x1=ext(p1, 0), y0=ext(p0, 1), y1=ext(p1, 1),
+                z_moved=float(p1[~half_low, 2].mean()), z_still=float(p1[half_low, 2].mean()))
 
 
 def run(m, trace=None, render=None):
@@ -65,7 +64,8 @@ def run(m, trace=None, render=None):
         held.append((side, idx, pos0[idx, :2] - p[:2]))
 
     tip = {s: arms.pinch(m, d, s) for s in arms.SIDES}
-    state = {"step": 0, "grip": arms.GRIP_OPEN, "grasp": False, "nan": False, "tear": 0.0}
+    state = {"step": 0, "grip": arms.GRIP_OPEN, "grasp": False, "nan": False, "tear": 0.0, "mid": False}
+    front = np.where(pos0[:, 1] >= pos0[:, 1].max() - 1e-6)[0]
     verts, faces, _ = garment.build("towel")
     e = np.array(sorted({tuple(sorted((f[i], f[(i + 1) % 3]))) for f in faces for i in range(3)}))
     # flex vertex order equals OBJ order for this mesh; edge rest lengths from the OBJ
@@ -93,6 +93,9 @@ def run(m, trace=None, render=None):
         pos = np.array(d.flexvert_xpos)
         if np.isnan(pos).any():
             state["nan"] = True
+        if render and not state["mid"] and pos[front, 1].mean() <= ymid:
+            state["mid"] = True                    # front edge has crossed the fold line
+            render("fold_mid", d)
         if trace is not None and state["step"] % TRACE_EVERY == 0:
             trace.append((state["step"], pos[:, 1].max() - pos[:, 1].min()))
 
@@ -128,14 +131,14 @@ def run(m, trace=None, render=None):
 
     pos = np.array(d.flexvert_xpos)
     stretch = float((np.linalg.norm(pos[e[:, 0]] - pos[e[:, 1]], axis=1) / rest).max())
-    res = dict(zip(("before", "after", "ratio", "overlap"), metrics(pos0[:, 1], pos[:, 1], ymid, half_low)))
-    res.update(nan=state["nan"], stretch=stretch)
-    res["folded"] = (not state["nan"]) and res["ratio"] <= RATIO_MAX and res["overlap"] >= OVERLAP_MIN
+    res = metrics(pos0, pos, half_low)
+    res.update(nan=state["nan"], stretch=stretch, y_centre=float((pos[:, 1].max() + pos[:, 1].min()) / 2))
+    res["width_ok"] = res["x1"] >= WIDTH_MIN * res["x0"]
+    res["depth_ok"] = res["y1"] <= DEPTH_MAX * res["y0"]
+    res["top_ok"] = res["z_moved"] - res["z_still"] >= TOP_MIN
+    res["folded"] = (not state["nan"]) and res["width_ok"] and res["depth_ok"] and res["top_ok"]
     if render:
-        r = mujoco.Renderer(m, height=720, width=1280)
-        r.update_scene(d, camera="inside")
-        render(r.render())
-        r.close()
+        render("fold_end", d)
     return res
 
 
@@ -150,12 +153,20 @@ def main():
     garment.write_obj(obj, verts, faces)
     m = mujoco.MjModel.from_xml_string(scene.build(obj, "towel"))
     trace = []
-    r = run(m, trace, lambda img: Image.fromarray(img).save(os.path.join(out, "fold.png")))
+    rr = mujoco.Renderer(m, height=720, width=1280)
+
+    def render(name, d):
+        rr.update_scene(d, camera="inside")
+        Image.fromarray(rr.render()).save(os.path.join(out, name + ".png"))
+
+    r = run(m, trace, render)
+    rr.close()
     with open(os.path.join(out, "fold_trace.txt"), "w") as f:
         f.write("step y_extent\n" + "".join(f"{s} {y:.3f}\n" for s, y in trace))
-    print(f"y-extent before: {r['before']:.3f}\ny-extent after:  {r['after']:.3f}\n"
-          f"ratio:           {r['ratio']:.2f}\noverlap:         {r['overlap']:.2f}\n"
-          f"max edge stretch: {r['stretch']:.2f}  nan: {r['nan']}  alpha: {ALPHA}  max step: {MAX_STEP}")
+    print(f"width: x {r['x0']:.3f} -> {r['x1']:.3f} (>= {WIDTH_MIN} x before): {'ok' if r['width_ok'] else 'FAIL'}\n"
+          f"depth: y {r['y0']:.3f} -> {r['y1']:.3f} (<= {DEPTH_MAX} x before): {'ok' if r['depth_ok'] else 'FAIL'}\n"
+          f"on top: mean z moved {r['z_moved']:.4f}, still {r['z_still']:.4f} (diff >= {TOP_MIN}): {'ok' if r['top_ok'] else 'FAIL'}\n"
+          f"final y-centre {r['y_centre']:.3f}  max edge stretch {r['stretch']:.2f}  nan {r['nan']}")
     print("FOLDED" if r["folded"] else "NOT FOLDED")
     return 0 if r["folded"] else 1
 

@@ -23,7 +23,17 @@ Ordered. Each task leaves the repo runnable. One task per turn. Verify with
 - [x] 2.1 Two arms with grippers in `sim/scene.py`, position servos, mirrored mounts.
 - [x] 2.2 `sim/fold.py`: keyframed trajectory, weld grasp to two corners.
       Acceptance: prints `FOLDED` with the extent before/after, exit 0.
-- [ ] 2.3 Fold check in `sim/check.py`: extent ratio and overlap, both printed.
+- [x] 2.2b Fold lands on the shelf and the check rejects a heap.
+      - Fold target: the final strip lies within the shelf bounds (y >= -0.15, y <= 0.25). A half fold
+        stacks the front half on the stationary back half, so the strip sits at y -0.15..0.0 by geometry.
+      - Check in fold.py and check.py: width (x after >= 0.90 x before), depth (y after <= 0.60 y before),
+        on top (mean z of moved half >= 2 mm above the stationary half). Print all six numbers.
+        FOLDED only if all three pass.
+      - Render sim/out/fold_mid.png (front edge passes over back edge) and sim/out/fold_end.png (after release),
+        both from the `inside` camera.
+      Acceptance: `sim/.venv/bin/python sim/fold.py` prints the six numbers and FOLDED;
+      `cd sim && .venv/bin/python check.py` prints VERDICT: PASS (10 checks).
+- [~] 2.3 Superseded by 2.2b: the extent-ratio and overlap check is replaced by width, depth and on-top.
 - [ ] 2.4 Render the fold: 120 frames to `sim/out/fold.mp4`, one take, no cuts.
 
 ## Phase 3 — Measure it (14–17 Nov)

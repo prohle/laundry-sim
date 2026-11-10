@@ -128,9 +128,10 @@ def c_arms_ready():
 
 def c_fold_folded():
     r = fold.run(model())
-    msg = f"ratio {r['ratio']:.2f} (<= {fold.RATIO_MAX}), overlap {r['overlap']:.2f} (>= {fold.OVERLAP_MIN}), nan {r['nan']}"
+    msg = (f"width {r['x1']:.3f}/{r['x0']:.3f} (>= {fold.WIDTH_MIN}), depth {r['y1']:.3f}/{r['y0']:.3f} (<= {fold.DEPTH_MAX}), "
+           f"z moved {r['z_moved']:.4f} still {r['z_still']:.4f} (diff >= {fold.TOP_MIN}), nan {r['nan']}")
     assert r["folded"], msg
-    print(f"      {msg}, y-extent {r['before']:.3f} -> {r['after']:.3f}")
+    print(f"      {msg}")
 
 
 CHECKS = [("garment-towel", lambda: garment_ok("towel")), ("garment-tee", c_tee),
