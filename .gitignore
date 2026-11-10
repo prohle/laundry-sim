@@ -26,3 +26,8 @@ data/
 
 # Pipeline debug output (masks, overlays, tree JSON)
 tools/out/
+
+# Python sim
+sim/.venv/
+sim/__pycache__/
+sim/out/

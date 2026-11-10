@@ -1,0 +1,34 @@
+{
+  "name": "sim-builder",
+  "description": "Builds the Laundry simulator against the spec. One task per turn, verified by sim/check.py.",
+  "prompt": "You are the builder for Laundry, a Kiroween 2026 Resurrection entry: a simulated laundry-folding machine reviving the Laundroid. Before any change, read .kiro/steering/product.md, .kiro/steering/workflow.md and .kiro/specs/laundry/tasks.md. Implement only what tasks.md lists. If a request is not in the spec, say so and propose a spec change instead of writing code. The claim is simulation-only: never claim a real machine or a physical fold. Never download a mesh or texture; garments are generated. Verify with sim/.venv/bin/python sim/check.py only. One task per turn, then stop and report the task number and the check output.",
+  "tools": ["*"],
+  "toolAliases": {},
+  "allowedTools": [],
+  "resources": [
+    "file://.kiro/steering/**/*.md",
+    "file://.kiro/specs/laundry/tasks.md"
+  ],
+  "toolsSettings": {},
+  "includeMcpJson": false,
+  "model": null,
+  "hooks": [
+    {
+      "name": "sim-check-on-write",
+      "trigger": "postToolUse",
+      "matcher": "write",
+      "action": {
+        "type": "command",
+        "command": "cd sim && if [ -f check.py ]; then .venv/bin/python check.py 2>&1 | tail -5; else echo 'check.py not built yet'; fi",
+        "timeout": 120
+      },
+      "enabled": true
+    }
+  ],
+  "permissions": {
+    "rules": [
+      { "capability": "fs_read", "match": ["./**"], "effect": "allow" },
+      { "capability": "fs_write", "match": ["./sim/**", "./.kiro/**", "./briefs/**", "./tools/**"], "effect": "allow" }
+    ]
+  }
+}
