@@ -67,6 +67,18 @@ Ordered. Each task leaves the repo runnable. One task per turn. Verify with
 target y and the lift height. A controller, not RL — stated as such.
 - [x] 4.2 Fit on training drops (seeds 1-5), evaluate on held-out drops (seeds 6-10). No tuning on test.
 - [x] 4.3 Table: scripted baseline vs closed-loop policy, same held-out seeds, same N.
+- [~] 4.4 Forearm 0.20 -> 0.23 m: close the depth gap. TRIED, FAILED: 0/50, upper joint at -2.403 rad on every run. A longer forearm must fold the upper link further back to reach y=-0.05, so it trades reach for a joint-limit singularity.
+      The failures miss the 0.60 depth threshold by 1-9 mm and the reach limit is 0.44 m against a
+      0.372 m farthest corner. Lengthen the forearm by 3 cm, re-solve the trajectory, re-run seeds 6-10.
+      This is a machine iteration, stated as such, not tuning.
+      Acceptance: the held-out table is printed and compared to the 32/50 baseline; the result is
+      reported as it comes out.
+
+- [ ] 4.5 Grasp patch 0.12 -> 0.16 m: reduce sag and close the depth gap.
+      The held patch is the cloth the kinematic grasp carries. A wider patch drags more of the front
+      edge, so the fold should be tighter and the final depth smaller.
+      Acceptance: the held-out table (seeds 6-10) is printed and compared to 32/50. If it does not
+      beat 32/50, report it and stop the mechanism search.
 
 ## Phase 5 — Show it (22–28 Nov)
 

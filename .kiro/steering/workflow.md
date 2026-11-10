@@ -8,14 +8,11 @@ These rules are hard. They are not style preferences.
 
 ## One verification call
 
-- Run `tools/check.sh` and nothing else to verify. It runs typecheck, Node tests, Rust tests and
-  the three fixtures, and prints one line each plus a verdict. Detail goes to `tools/out/check.json`.
-- Use `tools/check.sh --full` only when `solver/` changed (it adds the parity test).
-- **Never** run `npx tsc`, `npm test`, `cargo test`, `node tools/pipeline.ts` or `git status`
-  as separate calls. Each is a request. If a command is not in `tools/check.sh`, add it there
-  once, then call the script.
-- For a question about a fixture, call `@fold-fixtures/run_pipeline`. It answers in half a second
-  and returns counts, not a log.
+- Run `sim/.venv/bin/python sim/check.py` and nothing else to verify. It is the only harness for this
+  project; `tools/check.sh` belongs to the retired Fold pipeline and must not be run.
+- **Never** run the scene, the fold, the eval or a render as separate exploratory calls when the check
+  covers them. If a check is missing, add it to `check.py` once, then call the script.
+- For a numeric question, add a `--flag` to `eval.py` that prints one table, rather than a REPL loop.
 
 ## One task per turn
 
