@@ -46,8 +46,10 @@ def metrics(p0, p1, half_low):
 TOTAL_STEPS = 50 + 150 + 50 + 200 + 100 + 50 + 100     # control steps in run(), after SETTLE
 
 
-def run(m, trace=None, render=None, on_step=None, corners=None):
-    """corners: optional perceived (left, right) grasp targets; default is the fixed lay-down corners."""
+def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None):
+    """corners: optional perceived (left, right) grasp targets; default is the fixed lay-down corners.
+    y_fold: optional fold target y for the pinch points; default Y_FOLD."""
+    y_fold = Y_FOLD if y_fold is None else y_fold
     d = mujoco.MjData(m)
     mujoco.mj_forward(m, d)
     adr, n = qpos_adr(m)
@@ -132,7 +134,7 @@ def run(m, trace=None, render=None, on_step=None, corners=None):
     move(at(), 50)                                  # 2 close, settle
     move(at(z=Z_LIFT), 150)                         # 3 lift
     move(at(inward=True), 50)                       # 3b inward, away from the shoulder columns
-    move(at(y=Y_FOLD), 200)                         # 4 carry over
+    move(at(y=y_fold), 200)                         # 4 carry over
     move(at(z=Z_DOWN), 100)                         # 5 lower
     state["grip"] = arms.GRIP_OPEN; state["grasp"] = False
     move(at(z=Z_LIFT), 50)                          # 6 release, retract

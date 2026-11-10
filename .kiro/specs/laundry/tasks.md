@@ -63,10 +63,10 @@ Ordered. Each task leaves the repo runnable. One task per turn. Verify with
 
 ## Phase 4 — Learn it (17–22 Nov)
 
-- [ ] 4.1 Closed-loop policy: observe the perceived corners and the current y-extent; set the fold
+- [x] 4.1 Closed-loop policy: observe the perceived corners and the current y-extent; set the fold
 target y and the lift height. A controller, not RL — stated as such.
-- [ ] 4.2 Fit on training drops (seeds 1-5), evaluate on held-out drops (seeds 6-10). No tuning on test.
-- [ ] 4.3 Table: scripted baseline vs closed-loop policy, same held-out seeds, same N.
+- [x] 4.2 Fit on training drops (seeds 1-5), evaluate on held-out drops (seeds 6-10). No tuning on test.
+- [x] 4.3 Table: scripted baseline vs closed-loop policy, same held-out seeds, same N.
 
 ## Phase 5 — Show it (22–28 Nov)
 

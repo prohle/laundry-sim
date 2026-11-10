@@ -145,6 +145,15 @@ def c_eval_reproducible():
     assert time.time() - t0 < 60, f"two 3-run evals took {time.time() - t0:.0f} s (limit 60)"
 
 
+def c_policy_reproducible():
+    import eval as E
+    a, b = E.evaluate(3, 5, TMP.name, E.D_CHOSEN), E.evaluate(3, 5, TMP.name, E.D_CHOSEN)
+    for ra, rb in zip(a, b):
+        assert ra["result"] == rb["result"], f"run {ra['run']}: {ra['result']} != {rb['result']}"
+        for k in ("dx", "dy", "width", "depth", "ontop", "time", "wrinkle"):
+            assert np.allclose(ra[k], rb[k], atol=1e-6, equal_nan=True), f"run {ra['run']} {k}: {ra[k]} != {rb[k]}"
+
+
 def c_corners_front():
     import eval as E
     rows = E.corner_drops(TMP.name, [(0.04, -0.04)])   # one off-centre drop
@@ -157,7 +166,8 @@ CHECKS = [("garment-towel", lambda: garment_ok("towel")), ("garment-tee", c_tee)
           ("scene-loads", c_scene_loads), ("scene-parts", c_scene_parts),
           ("garment-on-shelf", c_on_shelf), ("render", c_render), ("deterministic", c_deterministic),
           ("arms-present", c_arms_present), ("arms-ready", c_arms_ready),
-          ("fold-folded", c_fold_folded), ("corners-front", c_corners_front), ("eval-reproducible", c_eval_reproducible)]
+          ("fold-folded", c_fold_folded), ("corners-front", c_corners_front), ("eval-reproducible", c_eval_reproducible),
+          ("policy-reproducible", c_policy_reproducible)]
 
 
 def main():

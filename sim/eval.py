@@ -76,7 +76,9 @@ def corner_drops(tmp, drops=None):
     return rows
 
 
-def one(i, seed, tmp, render=None):
+def one(i, seed, tmp, render=None, D=None):
+    """D=None: scripted baseline (absolute fold target fold.Y_FOLD). D=float: relative controller,
+    fold_target_y = mean(y_l, y_r) - D from the perceived corners. A hand-set controller, not RL."""
     yaw, dx, dy = drop(np.random.default_rng(seed + i))
     obj = os.path.join(tmp, "towel.obj")
     posed_obj(obj, yaw, dx, dy)
@@ -86,7 +88,9 @@ def one(i, seed, tmp, render=None):
     row = dict(run=i, yaw=yaw, dx=dx, dy=dy, width=float("nan"), depth=float("nan"), ontop=float("nan"),
                time=float("nan"), wrinkle=float("nan"), result="NOREACH")
     try:
-        r = fold.run(m, corners=front_corners(np.array(d.flexvert_xpos)))
+        cs = front_corners(np.array(d.flexvert_xpos))
+        yf = None if D is None else float((cs[0][1] + cs[1][1]) / 2 - D)
+        r = fold.run(m, corners=cs, y_fold=yf)
     except ValueError as e:
         row["why"] = str(e)
         return row                                      # IK: target out of reach or past a joint limit
@@ -97,8 +101,26 @@ def one(i, seed, tmp, render=None):
     return row
 
 
-def evaluate(runs, seed, tmp):
-    return [one(i, seed, tmp) for i in range(runs)]
+def evaluate(runs, seed, tmp, D=None):
+    return [one(i, seed, tmp, D=D) for i in range(runs)]
+
+
+D_GRID = (0.26, 0.28, 0.30, 0.32, 0.34)
+FIT_SEEDS, TEST_SEEDS = range(1, 6), range(6, 11)
+D_CHOSEN = 0.30   # placeholder until the fit on seeds 1-5 has run; replaced by the fit result
+
+
+def nfolded(rows):
+    return sum(r["result"] == "FOLDED" for r in rows)
+
+
+def experiment(runs, tmp):
+    """4.2/4.3: scan D on seeds 1-5 only, pick the best, then evaluate on seeds 6-10 (chosen D and scripted)."""
+    fit = {D: [r for s in FIT_SEEDS for r in evaluate(runs, s, tmp, D)] for D in D_GRID}
+    best = max(D_GRID, key=lambda D: (nfolded(fit[D]), -abs(D - 0.30)))   # ties: nearest the nominal 0.30
+    test = {"scripted": [r for s in TEST_SEEDS for r in evaluate(runs, s, tmp)],
+            "relative": [r for s in TEST_SEEDS for r in evaluate(runs, s, tmp, best)]}
+    return fit, best, test
 
 
 def fmt(r):
@@ -119,7 +141,36 @@ def main():
     ap.add_argument("--runs", type=int, default=10)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--corners", action="store_true", help="print the 9-drop corner table (task 3.5) and exit")
+    ap.add_argument("--policy", choices=("scripted", "relative"), default=None,
+                    help="scripted: absolute fold target; relative: fold_target_y = mean(y_l, y_r) - D. Given, baseline.md is not written")
+    ap.add_argument("--D", type=float, default=None, help=f"relative policy depth, default {D_CHOSEN}")
+    ap.add_argument("--experiment", action="store_true", help="4.2/4.3: fit D on seeds 1-5, test on seeds 6-10, write out/policy.md")
     a = ap.parse_args()
+    out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "out")
+    if a.experiment:
+        t0 = time.time()
+        with tempfile.TemporaryDirectory() as tmp:
+            fit, best, test = experiment(a.runs, tmp)
+        n = a.runs * len(FIT_SEEDS)
+        L = [f"Simulated towel fold, closed-loop relative controller (hand-set rule, not RL), {time.strftime('%Y-%m-%d')}.",
+             "fold_target_y = mean(y_l, y_r) - D, from the perceived front corners. D = 0.30 reproduces the scripted -0.05 at the nominal drop.",
+             "", f"Fit: seeds 1-5, {a.runs} runs each ({n} runs per D). Test: seeds 6-10, same N. D was fixed before any test run.",
+             "", "| D | folded (fit) |", "|---|---|"]
+        L += [f"| {D:.2f} | {nfolded(fit[D])}/{n} |" for D in D_GRID]
+        L += ["", f"Chosen D = {best:.2f}", "", f"| policy (test seeds 6-10) | folded | mean time | mean wrinkle |", "|---|---|---|---|"]
+        for k, rows in test.items():
+            ran = [r for r in rows if r["result"] != "NOREACH"]
+            L.append(f"| {k}{f' (D={best:.2f})' if k == 'relative' else ''} | {nfolded(rows)}/{len(rows)} | "
+                     f"{np.mean([r['time'] for r in ran]) if ran else float('nan'):.1f} s | "
+                     f"{np.mean([r['wrinkle'] for r in ran]) if ran else float('nan'):.3f} |")
+        nor = {k: sum(r["result"] == "NOREACH" for r in rows) for k, rows in test.items()}
+        L += ["", f"NOREACH (counted as failures): {nor}",
+              "", "Simulated, not a physical fold. Wrinkle is a proxy. Randomisation: towel position only, yaw 0."]
+        os.makedirs(out, exist_ok=True)
+        open(os.path.join(out, "policy.md"), "w").write("\n".join(L) + "\n")
+        print("\n".join(L))
+        print(f"wall: {time.time() - t0:.0f} s")
+        return 0
     if a.corners:
         with tempfile.TemporaryDirectory() as tmp:
             rows = corner_drops(tmp)
@@ -131,14 +182,19 @@ def main():
         return 0 if ok == 9 else 1
     t0 = time.time()
     with tempfile.TemporaryDirectory() as tmp:
-        rows = evaluate(a.runs, a.seed, tmp)
-    head = (f"Simulated towel fold, scripted baseline, same fixed trajectory every run. "
-            f"{a.runs} runs, seed {a.seed}, {time.strftime('%Y-%m-%d')}; no tuning, no train/test split (nothing is learned).")
+        rows = evaluate(a.runs, a.seed, tmp, None if a.policy != "relative" else (a.D if a.D is not None else D_CHOSEN))
+    pol = a.policy or "scripted"
+    Dv = (a.D if a.D is not None else D_CHOSEN) if pol == "relative" else None
+    head = (f"Simulated towel fold, {pol} policy" + (f" (D={Dv:.2f})" if Dv is not None else ", same fixed trajectory every run") +
+            f". {a.runs} runs, seed {a.seed}, {time.strftime('%Y-%m-%d')}; no tuning, no train/test split (nothing is learned).")
+    if a.policy:
+        head = head.replace("; no tuning, no train/test split (nothing is learned)", "")
     lines = [head, "", HEADER] + [fmt(r) for r in rows] + ["", summary(rows)]
     lines += [f"  run {r['run']}: {r['why']}" for r in rows if r.get("why")]
     print("\n".join(lines))
     print(f"wall: {time.time() - t0:.1f} s ({(time.time() - t0) / max(a.runs, 1):.1f} s/run)")
-    out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "out")
+    if a.policy:
+        return 0
     os.makedirs(out, exist_ok=True)
     with open(os.path.join(out, "baseline.md"), "w") as f:
         f.write(f"{head}\n\n```\n" + "\n".join([HEADER] + [fmt(r) for r in rows]) + f"\n\n{summary(rows)}\n" + "".join(f"run {r['run']}: {r['why']}\n" for r in rows if r.get("why")) + "```\n"
