@@ -122,6 +122,21 @@ target y and the lift height. A controller, not RL — stated as such.
       Acceptance: `STATIC_EXPORT=1 NEXT_PUBLIC_BASE_PATH=/laundry-sim npm run build` writes `out/`
       with the video and `_next` under `/laundry-sim/`; the default build still succeeds.
 
+## Phase 7 — The folding board (11–14 Nov)
+
+Reference: `docs/folds.md`. The arms become the loader; the board does the folding.
+
+- [ ] 7.1 Board, four flaps and a smoothing bar in `scene.py`; the garment lies on the board.
+      Flaps hinged at the board edges, position actuators, 0..180 degrees. Contact between flaps and
+      cloth enabled. Four cameras: top, side_l, side_r, front.
+      Acceptance: `sim/run.py --frames 1 --camera top` shows the garment on the board; each flap
+      rotates 90 degrees in a scripted test without NaN.
+- [ ] 7.2 Towel fold as a flap program: bottom, top. Re-run the eval; the number changes and is reported.
+- [ ] 7.3 T-shirt fold as a flap program: left, right, bottom, top (retail fold).
+      Gate: >= 6/10 on 10 unseen drops.
+- [ ] 7.4 Multi-view render: a 2x2 contact sheet (top, side_l, side_r, front) per fold, and a video
+      cut from the top and one side.
+
 ## Phase 6 — Kiro artefacts (continuous)
 
 - [ ] 6.1 MCP server `sim-tools`: `run_episode`, `eval_suite`, `render_clip`.
