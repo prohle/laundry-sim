@@ -77,7 +77,7 @@ def c_scene_loads():
 
 def c_scene_parts():
     m = model()
-    for kind, names in (("GEOM", ["back", "left", "right", "top", "bottom", "shelf"]),
+    for kind, names in (("GEOM", ["back", "left", "right", "top", "bottom", "board"]),
                         ("CAMERA", ["inside", "top"])):
         for n in names:
             assert mujoco.mj_name2id(m, getattr(mujoco.mjtObj, f"mjOBJ_{kind}"), n) >= 0, f"no {kind.lower()} '{n}'"
@@ -88,6 +88,72 @@ def c_on_shelf():
     assert not np.isnan(p).any(), "NaN in flexvert_xpos"
     lo, hi = p[:, 2].min(), p[:, 2].max()
     assert 0.69 <= lo and hi <= 0.76, f"z-range [{lo:.3f}, {hi:.3f}] outside [0.69, 0.76]"
+
+
+def c_board_parts():
+    m = model()
+    for n in ["board", "flap_left", "flap_right", "flap_front", "flap_back", "bar"]:
+        assert mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, n) >= 0, f"no body '{n}'"
+    for n in ["top", "side_l", "side_r", "front"]:
+        assert mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_CAMERA, n) >= 0, f"no camera '{n}'"
+
+
+def c_flap_travel():
+    m = model()
+    got = {}
+    for n in scene.FLAPS:
+        d = mujoco.MjData(m)
+        mujoco.mj_forward(m, d)
+        for _ in range(200):
+            mujoco.mj_step(m, d)
+        scene.drive_flap(m, d, n, 180)
+        got[n] = float(np.degrees(d.joint(f"hinge_{n}").qpos[0]))
+        assert not np.isnan(d.qpos).any(), f"flap_{n}: NaN"
+    bad = {n: round(a, 2) for n, a in got.items() if abs(a - 180) > 3}
+    assert not bad, f"flaps outside 180 +/- 3 deg: {bad}"
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+    d.ctrl[m.actuator("act_bar_y").id] = scene.BAR_Y[1] - scene.BAR_Y[0]
+    for _ in range(300):
+        mujoco.mj_step(m, d)
+    travel = float(d.joint("bar_y").qpos[0])
+    assert travel > 0.49, f"bar travelled {travel:.3f} m of 0.50"
+    print(f"      flap angles {({n: round(a, 1) for n, a in got.items()})}, bar {travel:.3f} m")
+
+
+FLAP_CARRY = {  # flap: (axis, sign toward the centre, hinge coordinate); section = cloth that starts beyond the hinge
+    "left": (0, +1, scene.CX - scene.BW / 2), "right": (0, -1, scene.CX + scene.BW / 2),
+    "front": (1, -1, scene.CY_B + scene.BD / 2)}
+
+
+def flap_carry(name):
+    """Settle the towel, fold one flap 180 deg. Returns hinge angle, section mean z, edge shift toward the centre, n."""
+    m = model()
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+    for _ in range(STEPS):
+        mujoco.mj_step(m, d)
+    p0 = np.array(d.flexvert_xpos)
+    ax, sg, h = FLAP_CARRY[name]
+    sec = (p0[:, ax] - h) * -sg > 0          # starts on the flap side of the hinge
+    far = sec & ((p0[:, ax] - h) * -sg > np.percentile(((p0[:, ax] - h) * -sg)[sec], 90))   # outer-edge 10% of the section
+    ang = scene.drive_flap(m, d, name, 180)
+    p1 = np.array(d.flexvert_xpos)
+    assert not np.isnan(p1).any(), f"flap {name}: NaN"
+    shift = float(((p1[far, ax] - p0[far, ax]) * sg).mean())
+    return ang, float(p1[sec, 2].mean()), shift, int(sec.sum())
+
+
+def c_flap_carries():
+    out = []
+    for n in FLAP_CARRY:
+        ang, z, shift, k = flap_carry(n)
+        out.append(f"{n}: {ang:.1f} deg, section z {z:.4f} ({(z - 0.71) * 1000:.1f} mm over panel), edge moved {shift:.3f} m, {k} verts")
+        assert abs(ang - 180) <= 3, f"{n}: angle {ang:.1f}"
+        assert z - 0.71 >= 0.005, f"{n}: section mean z {z:.4f} is {(z - 0.71) * 1000:.1f} mm over the panel (need 5)"
+        assert shift >= 0.15, f"{n}: outer edge moved {shift:.3f} m toward the centre (need 0.15)"
+    for o in out:
+        print(f"      {o}")
 
 
 def c_render():
@@ -189,7 +255,7 @@ def c_props():
 
 
 CHECKS = [("garment-towel", lambda: garment_ok("towel")), ("garment-tee", c_tee),
-          ("garments-all", c_garments_all), ("scene-loads", c_scene_loads), ("scene-parts", c_scene_parts),
+          ("garments-all", c_garments_all), ("scene-loads", c_scene_loads), ("scene-parts", c_scene_parts), ("board-parts", c_board_parts), ("flap-travel", c_flap_travel), ("flap-carries", c_flap_carries),
           ("garment-on-shelf", c_on_shelf), ("render", c_render), ("deterministic", c_deterministic),
           ("arms-present", c_arms_present), ("arms-ready", c_arms_ready),
           ("fold-folded", c_fold_folded), ("fold-program", c_fold_program_matches), ("corners-front", c_corners_front), ("eval-reproducible", c_eval_reproducible),

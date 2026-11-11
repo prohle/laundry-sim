@@ -126,7 +126,7 @@ target y and the lift height. A controller, not RL — stated as such.
 
 Reference: `docs/folds.md`. The arms become the loader; the board does the folding.
 
-- [ ] 7.1 Board, four flaps and a smoothing bar in `scene.py`; the garment lies on the board.
+- [x] 7.1 Board, four flaps and a smoothing bar in `scene.py`; the garment lies on the board.
       Flaps hinged at the board edges, position actuators, 0..180 degrees. Contact between flaps and
       cloth enabled. Four cameras: top, side_l, side_r, front.
       Acceptance: `sim/run.py --frames 1 --camera top` shows the garment on the board; each flap

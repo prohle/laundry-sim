@@ -22,7 +22,7 @@ import garment
 ALPHA = 0.35          # fraction of the remaining distance closed per step
 MAX_STEP = 0.02       # per-step cap on a grasped vertex, metres
 GRASP_RADIUS = 0.16   # vertices within this xy distance of a corner are held (corner row only)
-Z_LIFT, Z_DOWN = 0.80, 0.76  # task 5.8: from `eval.py --scan` (towel path, 9 drops): lowest lift with 0.04 m clearance over the lower height; margin 0.19 rad at 'upper'
+Z_LIFT, Z_DOWN = 0.81, 0.77  # task 5.8 scan values 0.80/0.76, +0.01 for the 7.1 board (top 0.71, was 0.70): same clearance over the cloth
 INWARD = 0.10         # smallest inward move that reaches the scan's plateau at Z_LIFT 0.80 (more inward does not improve the margin)
 Y_FOLD = -0.05        # pinch y at the far side; the towel spans y -0.15..0.25, so 0.18 would not fold it
 SETTLE = 200          # not counted in the ~550 fold steps

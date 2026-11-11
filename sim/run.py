@@ -18,7 +18,9 @@ import scene
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--frames", type=int, default=1)
-    ap.add_argument("--camera", choices=["inside", "top"], default="inside")
+    ap.add_argument("--camera", choices=list(scene.CAMERAS), default="inside")
+    ap.add_argument("--flap", choices=list(scene.FLAPS), help="scripted test: rotate this flap")
+    ap.add_argument("--angle", type=float, default=90.0, help="flap angle in degrees")
     ap.add_argument("--garment", choices=["towel", "tee"], default="towel")
     ap.add_argument("--out", default="sim/out/frame.png")
     ap.add_argument("--arms", choices=["ready", "zero"], default="ready")
@@ -43,6 +45,10 @@ def main():
     steps = 200  # settle
     for _ in range(steps):
         mujoco.mj_step(model, data)
+
+    if a.flap:
+        ang = scene.drive_flap(model, data, a.flap, a.angle)
+        print(f"flap_{a.flap}: {ang:.2f} deg (target {a.angle})")
 
     pos = np.array(data.flexvert_xpos)
     if np.isnan(pos).any():
