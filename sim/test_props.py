@@ -95,14 +95,28 @@ def fold_seed(seed, tag=0):
     return _folds[(seed, tag)]
 
 
+_flaps = {}
+
+
+def flap_trace(seed):
+    """Footprint area ratio (hull / initial) sampled every 100 steps through the towel flap program, on the seeded drop."""
+    if seed not in _flaps:
+        import flapfold
+        _, dx, dy = E.drop(np.random.default_rng(seed))
+        tr = []
+        flapfold.run(flapfold.model_for("towel", TMP.name, dx, dy), trace=tr)
+        _flaps[seed] = tr
+    return _flaps[seed]
+
+
 @given(seed=st.sampled_from([1, 2, 3]))
 @prop("extent_monotone", 3)
 def extent_monotone(seed):
-    tr, _ = fold_seed(seed)
-    ys = [y for _, y in tr]
-    assert len(ys) > 2, f"seed {seed}: trace of {len(ys)} samples"
-    worst = max(b - a for a, b in zip(ys, ys[1:]))
-    assert worst <= 0.02, f"seed {seed}: y-extent grew {worst * 100:.1f} cm between samples"
+    """Task 7.5: on the flap path the footprint area never grows by more than 5% (of the initial area) between samples."""
+    ar = flap_trace(seed)
+    assert len(ar) > 2, f"seed {seed}: trace of {len(ar)} samples"
+    worst = max(b - a for a, b in zip(ar, ar[1:]))
+    assert worst <= 0.05, f"seed {seed}: footprint area grew {worst * 100:.1f}% between samples"
 
 
 @given(seed=st.sampled_from([1, 2, 3]))

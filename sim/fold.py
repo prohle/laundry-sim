@@ -27,6 +27,7 @@ INWARD = 0.10         # smallest inward move that reaches the scan's plateau at 
 Y_FOLD = -0.05        # pinch y at the far side; the towel spans y -0.15..0.25, so 0.18 would not fold it
 SETTLE = 200          # not counted in the ~550 fold steps
 WIDTH_MIN, DEPTH_MAX, TOP_MIN = 0.90, 0.60, 0.002  # x1/x0, y1/y0, metres
+TEE_WIDTH_MIN = 0.85  # brief 40: the sleeves make the tee looser than the towel
 TRACE_EVERY = 25
 
 
@@ -46,7 +47,7 @@ def metrics(p0, p1, half_low):
 TOTAL_STEPS = 50 + 150 + 50 + 200 + 100 + 50 + 100     # control steps in run(), after SETTLE
 
 
-def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, friction=False, program=None, landmarks=None, kind="towel", whole_checks=True):
+def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, friction=False, program=None, landmarks=None, kind="towel", whole_checks=True, width_min=None, moved_low=False):
     """corners: optional perceived (left, right) grasp targets; default is the fixed lay-down corners.
     y_fold: optional fold target y for the pinch points; default Y_FOLD.
     program: optional list of steps (see program.py); None keeps the single scripted trajectory.
@@ -194,7 +195,7 @@ def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, fri
                 if st.get("release", True):
                     state["grip"] = arms.GRIP_OPEN; state["grasp"] = False
                     move(at(z=st["lift_z"]), 50)            # release, retract
-                for _ in range(100):                        # let the cloth settle
+                for _ in range(st.get("settle", 100)):      # let the cloth settle
                     step(tip)
             except ValueError as ex:
                 if len(program) == 1 and whole_checks:
@@ -221,10 +222,10 @@ def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, fri
 
     pos = np.array(d.flexvert_xpos)
     stretch = float((np.linalg.norm(pos[e[:, 0]] - pos[e[:, 1]], axis=1) / rest).max())
-    res = metrics(pos0, pos, half_low)
+    res = metrics(pos0, pos, ~half_low if moved_low else half_low)   # moved_low: the carried half is the low-y one (tee hem)
     wrinkle = float(np.abs(np.linalg.norm(pos[e[:, 0]] - pos[e[:, 1]], axis=1) / rest - 1.0).mean())
     res.update(slip=slip.get("at", "none"), slip_dist=slip.get("dist", 0.0), maxq=state["maxq"], nan=state["nan"], stretch=stretch, wrinkle=wrinkle, time=state["step"] * m.opt.timestep, y_centre=float((pos[:, 1].max() + pos[:, 1].min()) / 2))
-    res["width_ok"] = res["x1"] >= WIDTH_MIN * res["x0"]
+    res["width_ok"] = res["x1"] >= (WIDTH_MIN if width_min is None else width_min) * res["x0"]
     res["depth_ok"] = res["y1"] <= DEPTH_MAX * res["y0"]
     res["top_ok"] = res["z_moved"] - res["z_still"] >= TOP_MIN
     res["folded"] = (not state["nan"]) and res["width_ok"] and res["depth_ok"] and res["top_ok"]
@@ -237,27 +238,49 @@ def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, fri
 
 
 def main():
-    import tempfile
+    import argparse, tempfile
     from PIL import Image
     import scene
-    verts, faces, _ = garment.build("towel")
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--garment", choices=("towel", "tee"), default="towel")
+    ap.add_argument("--policy", choices=("scripted", "arms"), default="scripted")
+    ap.add_argument("--y", type=float, default=0.05, help="tee arms: pinch y at the fold line")
+    a = ap.parse_args()
+    tee = a.garment == "tee"
+    verts, faces, _ = garment.build(a.garment)
     out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "out")
     os.makedirs(out, exist_ok=True)
-    obj = os.path.join(tempfile.mkdtemp(), "towel.obj")
+    obj = os.path.join(tempfile.mkdtemp(), a.garment + ".obj")
     garment.write_obj(obj, verts, faces)
-    m = mujoco.MjModel.from_xml_string(scene.build(obj, "towel"))
+    m = mujoco.MjModel.from_xml_string(scene.build(obj, a.garment))
     trace = []
     rr = mujoco.Renderer(m, height=720, width=1280)
 
     def render(name, d):
-        rr.update_scene(d, camera="inside")
-        Image.fromarray(rr.render()).save(os.path.join(out, name + ".png"))
+        for cam in (("inside", "top") if tee else ("inside",)):
+            rr.update_scene(d, camera=cam)
+            Image.fromarray(rr.render()).save(os.path.join(out, (name if cam == "inside" else f"{name}_{cam}") + ".png"))
 
-    r = run(m, trace, render)
+    kw = {}
+    if tee:
+        import program
+        d0 = mujoco.MjData(m); mujoco.mj_forward(m, d0)
+        ox, oy = scene._offset("tee")
+        lm = {n: (ox + x, oy + z) for n, (x, z) in garment.build_full("tee")[3].items()}
+        pos = np.array(d0.flexvert_xpos)
+        cs = [pos[np.argmin(np.hypot(pos[:, 0] - lm[n][0], pos[:, 1] - lm[n][1]))].copy() for n in ("hem_l", "hem_r")]
+        kw = dict(program=program.tee_half_program(a.y), corners=cs, landmarks=lm, kind="tee", width_min=TEE_WIDTH_MIN, moved_low=True)
+    try:
+        r = run(m, trace, render, **kw)
+    except ValueError as ex:
+        rr.close()
+        print(f"NOREACH: {ex}")
+        return 1
     rr.close()
+    wmin = TEE_WIDTH_MIN if tee else WIDTH_MIN
     with open(os.path.join(out, "fold_trace.txt"), "w") as f:
         f.write("step y_extent\n" + "".join(f"{s} {y:.3f}\n" for s, y in trace))
-    print(f"width: x {r['x0']:.3f} -> {r['x1']:.3f} (>= {WIDTH_MIN} x before): {'ok' if r['width_ok'] else 'FAIL'}\n"
+    print(f"width: x {r['x0']:.3f} -> {r['x1']:.3f} (>= {wmin} x before): {'ok' if r['width_ok'] else 'FAIL'}\n"
           f"depth: y {r['y0']:.3f} -> {r['y1']:.3f} (<= {DEPTH_MAX} x before): {'ok' if r['depth_ok'] else 'FAIL'}\n"
           f"on top: mean z moved {r['z_moved']:.4f}, still {r['z_still']:.4f} (diff >= {TOP_MIN}): {'ok' if r['top_ok'] else 'FAIL'}\n"
           f"final y-centre {r['y_centre']:.3f}  max edge stretch {r['stretch']:.2f}  nan {r['nan']}  max |joint| "+" ".join(f"{k} {v:.3f}/{max(abs(x) for x in arms.RANGES[k])}" for k, v in r['maxq'].items())+f" rad (INWARD {INWARD} m, Z_LIFT {Z_LIFT})")

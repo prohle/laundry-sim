@@ -184,6 +184,47 @@ def tee_run(i, seed, tmp, inward=0.17, lift_z=fold.Z_LIFT):
     return row
 
 
+def tee_half_run(i, seed, tmp):
+    """Task 7.7 / brief 40: tee half fold with the arms (hems to the fold line), whole-garment width/depth/on-top check."""
+    yaw, dx, dy = drop(np.random.default_rng(seed + i))
+    obj = os.path.join(tmp, "tee.obj")
+    posed_obj(obj, yaw, dx, dy, "tee")
+    m = mujoco.MjModel.from_xml_string(scene.build(obj, "tee"))
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+    ox, oy = scene._offset("tee")
+    pos = np.array(d.flexvert_xpos)
+    lm = {n: (ox + x + dx, oy + z + dy) for n, (x, z) in garment.build_full("tee")[3].items()}
+    cs = [pos[np.argmin(np.hypot(pos[:, 0] - lm[n][0], pos[:, 1] - lm[n][1]))].copy() for n in ("hem_l", "hem_r")]
+    row = dict(run=i, dx=dx, dy=dy, result="NOREACH")
+    try:
+        r = program.run_program(m, program.tee_half_program(), corners=cs, landmarks=lm, kind="tee", width_min=fold.TEE_WIDTH_MIN, moved_low=True)
+    except ValueError as e:
+        row["why"] = str(e)
+        return row
+    row.update(r=r, result="FOLDED" if r["folded"] else ("BLOWUP" if r["nan"] else "FAILED"))
+    return row
+
+
+def tee_half_table(a):
+    t0 = time.time()
+    with tempfile.TemporaryDirectory() as tmp:
+        rows = [tee_half_run(i, a.seed, tmp) for i in range(a.runs)]
+    L = [f"Simulated tee half fold with the arms (hems to y 0.05, lift 0.85, lower 0.73, settle 500), kinematic grasp. {a.runs} runs, seed {a.seed}.",
+         f"Check: width >= {fold.TEE_WIDTH_MIN} x before, depth <= {fold.DEPTH_MAX} x before, moved half >= {fold.TOP_MIN * 1000:.0f} mm above the stationary half. Yaw 0, position +-0.04 m.", "",
+         "run    dx     dy   x0->x1        y0->y1        z_moved z_still  w  d  t  result"]
+    for r in rows:
+        if "r" in r:
+            q = r["r"]
+            L.append(f"{r['run']:>3} {r['dx']:>6.3f} {r['dy']:>6.3f}  {q['x0']:.3f}->{q['x1']:.3f}  {q['y0']:.3f}->{q['y1']:.3f}  {q['z_moved']:.4f}  {q['z_still']:.4f}  "
+                     f"{int(q['width_ok'])}  {int(q['depth_ok'])}  {int(q['top_ok'])}  {r['result']}")
+        else:
+            L.append(f"{r['run']:>3} {r['dx']:>6.3f} {r['dy']:>6.3f}  NOREACH: {r.get('why', '')}")
+    L += ["", f"success: {nfolded(rows)}/{len(rows)}   wall {time.time() - t0:.0f} s", "Simulated, not a physical fold."]
+    print("\n".join(L))
+    return 0
+
+
 def tee_table(a):
     t0 = time.time()
     with tempfile.TemporaryDirectory() as tmp:
@@ -204,6 +245,27 @@ def tee_table(a):
           f"success: {nfolded(rows)}/{n}", "Simulated, not a physical fold."]
     print("\n".join(L))
     print(f"wall: {time.time() - t0:.0f} s")
+    return 0
+
+
+def flaps_table(a):
+    """Task 7.2: towel flap program (left, right, front, back; fold + retract) on drops of seed a.seed. Area is the hull ratio."""
+    import flapfold
+    t0 = time.time()
+    L = [f"Simulated towel fold, flap program (left, right, front, back; fold + retract), {a.runs} runs, seed {a.seed}. Yaw 0, position +-0.04 m.",
+         f"Check: hull area ratio <= {flapfold.AREA_MAX}, mean z within board top + {flapfold.STACK_MIN * 1000:.0f}-{flapfold.STACK_MAX * 1000:.0f} mm after all flaps are laid flat, >= {flapfold.CENTRE_MIN * 100:.0f}% of vertices on the centre panel, no NaN.", "",
+         "run    dx     dy    after: left  right  front  back   area   z-mm  centre  below  result"]
+    rows = []
+    with tempfile.TemporaryDirectory() as tmp:
+        for i in range(a.runs):
+            _, dx, dy = drop(np.random.default_rng(a.seed + i))
+            r = flapfold.run(flapfold.model_for("towel", tmp, dx, dy))
+            rows.append(r)
+            L.append(f"{i:>3} {dx:>6.3f} {dy:>6.3f}         " + " ".join(f"{ab:>6.3f}" for _, ab in r["areas"]) +
+                     f"  {r['area']:.3f}  {(r['z'] - flapfold.BOARD_TOP) * 1000:>5.1f}  {r['centre'] * 100:>5.0f}%  {r['fell']:>3}/{r['n']}  {'FOLDED' if r['folded'] else ('BLOWUP' if r['nan'] else 'FAILED')}")
+    L += ["", f"success: {sum(r['folded'] for r in rows)}/{len(rows)}   wall {time.time() - t0:.0f} s", "Simulated, not a physical fold. Distinct drops: "
+          f"{len({(round(r_[0], 9), round(r_[1], 9)) for r_ in [drop(np.random.default_rng(a.seed + i))[1:] for i in range(a.runs)]})}."]
+    print("\n".join(L))
     return 0
 
 
@@ -315,7 +377,7 @@ def main():
     ap.add_argument("--runs", type=int, default=10)
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--corners", action="store_true", help="print the 9-drop corner table (task 3.5) and exit")
-    ap.add_argument("--policy", choices=("scripted", "relative", "friction"), default=None,
+    ap.add_argument("--policy", choices=("scripted", "relative", "friction", "flaps", "arms"), default=None,
                     help="scripted: absolute fold target; relative: fold_target_y = mean(y_l, y_r) - D. Given, baseline.md is not written")
     ap.add_argument("--D", type=float, default=None, help=f"relative policy depth, default {D_CHOSEN}")
     ap.add_argument("--experiment", action="store_true", help="4.2/4.3: fit D on seeds 1-5, test on seeds 6-10, write out/policy.md")
@@ -329,7 +391,7 @@ def main():
     if a.reach:
         return reach_table()
     if a.garment == "tee":
-        return tee_table(a)
+        return tee_half_table(a) if a.policy == "arms" else tee_table(a)
     if a.clean:
         used = {s + i for s in TEST_SEEDS for i in range(10)}   # rng seeds already drawn in the seeds 6-10 runs
         L = [f"Simulated towel fold, scripted policy, no tuning. Seeds 11-20 x 10 runs per config, {time.strftime('%Y-%m-%d')}.",
@@ -387,6 +449,8 @@ def main():
         return 0 if ok == 9 else 1
     if a.policy == "friction":
         return friction_table(a, out)
+    if a.policy == "flaps":
+        return flaps_table(a)
     t0 = time.time()
     with tempfile.TemporaryDirectory() as tmp:
         rows = evaluate(a.runs, a.seed, tmp, None if a.policy != "relative" else (a.D if a.D is not None else D_CHOSEN))
