@@ -5,24 +5,41 @@ import { useState } from "react";
 const REPO = "https://github.com/prohle/laundry-sim";
 const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
-const ROWS = [
-  { patch: "0.12", config: "0.12 m", runs: 100, success: "70/100", unseen: "35/55" },
-  { patch: "0.16", config: "0.16 m", runs: 100, success: "100/100", unseen: "55/55" },
+// Source: sim/out/wardrobe.md (written by sim/wardrobe.py).
+const WARDROBE = [
+  { kind: "towel", video: "fold.mp4", runs: 100, folded: 100, distinct: 19, note: "55/55 on the 10 unseen drops (patch 0.16 study)" },
+  { kind: "tee", video: "fold-tee.mp4", runs: 100, folded: 100, distinct: 19, note: "half fold, hems to the shoulder line" },
+  { kind: "pants", video: "fold-pants.mp4", runs: 100, folded: 100, distinct: 19, note: "scaled to the board (0.44 x 0.70)" },
+  { kind: "shorts", video: "fold-shorts.mp4", runs: 100, folded: 100, distinct: 19, note: "scaled to the board (0.44 x 0.55)" },
+  { kind: "dress", video: "fold-dress.mp4", runs: 100, folded: 92, distinct: 19, note: "one drop fails the on-top check, deterministically" },
 ];
 
 const COMMANDS = `cd sim
-.venv/bin/python check.py                 # 13 checks, ~50 s
+.venv/bin/python check.py                 # 20 checks
 .venv/bin/python eval.py --runs 10 --seed 11
 .venv/bin/python fold.py                  # one nominal fold, FOLDED
 .venv/bin/python video.py                 # sim/out/fold.mp4`;
 
 export default function Page() {
-  const [patch, setPatch] = useState("0.16");
+  const [kind, setKind] = useState("tee");
+  const current = WARDROBE.find((r) => r.kind === kind) ?? WARDROBE[1];
 
   return (
     <main>
       <section className="hero">
-        <video src={`${base}/fold.mp4`} autoPlay muted loop playsInline />
+        <div className="toggle" role="group" aria-label="Garment">
+          {WARDROBE.map((r) => (
+            <button
+              key={r.kind}
+              type="button"
+              aria-pressed={kind === r.kind}
+              onClick={() => setKind(r.kind)}
+            >
+              {r.kind}
+            </button>
+          ))}
+        </div>
+        <video key={current.video} src={`${base}/${current.video}`} autoPlay muted loop playsInline />
         <p className="caption">simulated · no machine was built</p>
       </section>
 
@@ -41,40 +58,38 @@ export default function Page() {
 
       <section>
         <h2>The result</h2>
-        <div className="toggle" role="group" aria-label="Grasp patch">
-          {ROWS.map((r) => (
-            <button
-              key={r.patch}
-              type="button"
-              aria-pressed={patch === r.patch}
-              onClick={() => setPatch(r.patch)}
-            >
-              grasp patch {r.patch}
-            </button>
-          ))}
-        </div>
         <table>
           <thead>
             <tr>
-              <th>config</th>
+              <th>kind</th>
               <th>runs</th>
-              <th>success</th>
-              <th>unseen drops</th>
+              <th>folded</th>
+              <th>distinct</th>
+              <th>note</th>
             </tr>
           </thead>
           <tbody>
-            {ROWS.map((r) => (
-              <tr key={r.patch} className={patch === r.patch ? "on" : undefined}>
-                <td>{r.config}</td>
+            {WARDROBE.map((r) => (
+              <tr key={r.kind} className={kind === r.kind ? "on" : undefined}>
+                <td>{r.kind}</td>
                 <td>{r.runs}</td>
-                <td>{r.success}</td>
-                <td>{r.unseen}</td>
+                <td>{r.folded}</td>
+                <td>{r.distinct}</td>
+                <td>{r.note}</td>
               </tr>
             ))}
           </tbody>
         </table>
         <p className="note">
-          10 distinct unseen drops. Depth 0.49–0.59 against 0.60. Width 0.91–0.98 against 0.90.
+          Simulated, kinematic grasp, seeds 11–20. 100 runs are 19 distinct drops; run i of seed s
+          draws from rng(s+i).
+        </p>
+        <p className="note">
+          Dress: the failing drop fails the on-top check every time it is drawn; the other 18
+          distinct drops fold.
+        </p>
+        <p className="note">
+          Towel study: grasp patch 0.12 m folded 35/55 unseen drops, patch 0.16 m folded 55/55.
         </p>
       </section>
 
@@ -104,6 +119,20 @@ export default function Page() {
             <span>0/10 · fingers cannot pinch a flat sheet</span>
           </div>
         </div>
+      </section>
+
+      <section>
+        <h2>Limits</h2>
+        <ul>
+          <li>
+            One fold per garment, along the board&apos;s depth axis. The fixed symmetric arms cannot
+            fold along the width axis (both grasp points would sit on one side; the far arm cannot
+            reach), so the legs-together fold for pants is out of reach with this machine.
+          </li>
+          <li>Garments are scaled to the board.</li>
+          <li>Kinematic grasp. The contact grasp folded 0/10: fingers cannot pinch a flat sheet.</li>
+          <li>Yaw fixed at 0. 19 distinct drops. Wrinkle is a proxy.</li>
+        </ul>
       </section>
 
       <section>

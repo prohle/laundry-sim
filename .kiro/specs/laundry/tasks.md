@@ -162,15 +162,20 @@ width axis (both grasp points would sit on one side; the far arm cannot reach), 
 fold for pants is out of reach with this machine — that is limit 7, documented. Garments are scaled to
 the board; the README says so.
 
-- [ ] 8.1 Tee at full strength: the 100-run clean protocol (seeds 11-20), same as the towel's 55/55.
+- [x] 8.1 Tee at full strength: 100/100, 19 distinct drops: the 100-run clean protocol (seeds 11-20), same as the towel's 55/55.
 - [x] 8.2 Pants, shorts, dress on the half-fold program.
       Scale to the board: pants W 0.44 x H 0.70 inseam 0.40; shorts W 0.44 x H 0.55 inseam 0.28;
       dress W 0.40 (hem 0.50) x H 0.70. Same program as the tee: grasp hem_l/hem_r, carry to the
       front edge minus 0.10 m. Wire --clean for every garment.
       Acceptance: each garment runs the clean protocol and writes its table to sim/out/.
 - [ ] 8.4 `video.py --garment <kind>`: render every garment's half fold to sim/out/fold-<kind>.mp4.
-- [ ] 8.3 The wardrobe table: one command, all garments, success rates side by side; written to
+- [x] 8.3 The wardrobe table (see 8.5): one command, all garments, success rates side by side; written to
       sim/out/wardrobe.md and shown on the page.
+
+- [x] 8.5 The wardrobe on the page: `sim/wardrobe.py` writes `sim/out/wardrobe.md` from the five clean
+      tables (no eval re-run). Page: garment selector (default tee) switching hero video and highlighted
+      row, wardrobe table, seed-overlap caveat, dress failing-drop sentence, rewritten limits.
+      Acceptance: `sim/wardrobe.py`, `npm run build` and the `STATIC_EXPORT=1` build exit 0; dress at 92.
 
 ## Phase 6 — Kiro artefacts (continuous)
 
