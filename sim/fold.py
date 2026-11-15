@@ -239,6 +239,17 @@ def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, fri
     return res
 
 
+def half_fold_kwargs(m, kind, y=None):
+    """run() kwargs for the arms half fold of a non-towel garment (shared by main and video.py)."""
+    import program, scene
+    d0 = mujoco.MjData(m); mujoco.mj_forward(m, d0)
+    ox, oy = scene._offset(kind)
+    lm = {n: (ox + x, oy + z) for n, (x, z) in garment.build_full(kind)[3].items()}
+    pos = np.array(d0.flexvert_xpos)
+    cs = [pos[np.argmin(np.hypot(pos[:, 0] - lm[n][0], pos[:, 1] - lm[n][1]))].copy() for n in ("hem_l", "hem_r")]
+    return dict(program=program.half_fold_program(kind, y), corners=cs, landmarks=lm, kind=kind, width_min=TEE_WIDTH_MIN, moved_low=True, top_min=TEE_TOP_MIN)
+
+
 def main():
     import argparse, tempfile
     from PIL import Image
@@ -263,15 +274,7 @@ def main():
             rr.update_scene(d, camera=cam)
             Image.fromarray(rr.render()).save(os.path.join(out, (name if cam == "inside" else f"{name}_{cam}") + ".png"))
 
-    kw = {}
-    if tee:
-        import program
-        d0 = mujoco.MjData(m); mujoco.mj_forward(m, d0)
-        ox, oy = scene._offset(a.garment)
-        lm = {n: (ox + x, oy + z) for n, (x, z) in garment.build_full(a.garment)[3].items()}
-        pos = np.array(d0.flexvert_xpos)
-        cs = [pos[np.argmin(np.hypot(pos[:, 0] - lm[n][0], pos[:, 1] - lm[n][1]))].copy() for n in ("hem_l", "hem_r")]
-        kw = dict(program=program.half_fold_program(a.garment, a.y), corners=cs, landmarks=lm, kind=a.garment, width_min=TEE_WIDTH_MIN, moved_low=True, top_min=TEE_TOP_MIN)
+    kw = half_fold_kwargs(m, a.garment, a.y) if tee else {}
     try:
         r = run(m, trace, render, **kw)
     except ValueError as ex:

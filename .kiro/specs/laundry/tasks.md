@@ -168,6 +168,7 @@ the board; the README says so.
       dress W 0.40 (hem 0.50) x H 0.70. Same program as the tee: grasp hem_l/hem_r, carry to the
       front edge minus 0.10 m. Wire --clean for every garment.
       Acceptance: each garment runs the clean protocol and writes its table to sim/out/.
+- [ ] 8.4 `video.py --garment <kind>`: render every garment's half fold to sim/out/fold-<kind>.mp4.
 - [ ] 8.3 The wardrobe table: one command, all garments, success rates side by side; written to
       sim/out/wardrobe.md and shown on the page.
 

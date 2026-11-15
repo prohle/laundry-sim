@@ -18,14 +18,15 @@ import scene
 W, H, FPS, FRAMES = 1280, 720, 30, 120
 
 
-def render(out, frames=FRAMES):
-    """Render the scripted fold to `out` with `frames` evenly spaced frames. Returns (frames written, fold result, wall s)."""
+def render(out, frames=FRAMES, kind="towel"):
+    """Render the scripted fold (towel) or the arms half fold (other kinds) to `out`. Returns (frames written, fold result, wall s, dt)."""
     t0 = time.time()
     os.makedirs(os.path.dirname(out), exist_ok=True)
-    verts, faces, _ = garment.build("towel")
-    obj = os.path.join(tempfile.mkdtemp(), "towel.obj")
+    verts, faces, _ = garment.build(kind)
+    obj = os.path.join(tempfile.mkdtemp(), kind + ".obj")
     garment.write_obj(obj, verts, faces)
-    m = mujoco.MjModel.from_xml_string(scene.build(obj, "towel"))
+    m = mujoco.MjModel.from_xml_string(scene.build(obj, kind))
+    kw = {} if kind == "towel" else fold.half_fold_kwargs(m, kind)
     rr = mujoco.Renderer(m, height=H, width=W)
     ff = subprocess.Popen(
         ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
@@ -40,7 +41,7 @@ def render(out, frames=FRAMES):
             ff.stdin.write(rr.render().tobytes())
             n[0] += 1
 
-    r = fold.run(m, on_step=on_step)
+    r = fold.run(m, on_step=on_step, **kw)
     ff.stdin.close()
     rc = ff.wait()
     rr.close()
@@ -50,8 +51,14 @@ def render(out, frames=FRAMES):
 
 
 def main():
-    out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "out", "fold.mp4")
-    n, r, wall, dt = render(out)
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--garment", choices=("towel", "tee", "pants", "shorts", "dress"), default="towel")
+    ap.add_argument("--out", default=None)
+    a = ap.parse_args()
+    name = "fold.mp4" if a.garment == "towel" else f"fold-{a.garment}.mp4"
+    out = a.out or os.path.join(os.path.dirname(os.path.abspath(__file__)), "out", name)
+    n, r, wall, dt = render(out, kind=a.garment)
     sim_s = fold.TOTAL_STEPS * dt
     print(f"frames {n}  simulated {sim_s:.2f} s  wall-clock {wall:.1f} s  "
           f"{out}  {os.path.getsize(out)} bytes  (simulated; {'FOLDED' if r['folded'] else 'NOT FOLDED'})")
