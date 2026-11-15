@@ -51,22 +51,24 @@ def hull_area(p):
 
 def run(m, order=TOWEL_ORDER, retract_deg=90.0, frames=None, bar=True, trace=None):
     """Fold-and-retract each flap in order. Returns dict: a0, areas (per step), area, z, nan, folded, angles; d is returned as 'data'.
-    trace: optional list; the hull area ratio is appended every 100 steps of the fold and retract (the flap-path extent property)."""
+    trace: optional list; the hull area ratio is appended at the start of each flap's fold and every 100 steps of the fold ramp, with a
+    None before each flap (the flap-path extent property compares neighbours within a fold ramp only; retract and bar release are not sampled)."""
     d = mujoco.MjData(m)
     mujoco.mj_forward(m, d)
     for _ in range(SETTLE):
         mujoco.mj_step(m, d)
     a0 = hull_area(np.array(d.flexvert_xpos))
     cb = (lambda: trace.append(hull_area(np.array(d.flexvert_xpos)) / a0)) if trace is not None else None
-    if cb:
-        cb()
     areas, zs, angles, flat_z = [], [], [], []
     for n in order:
+        if trace is not None:
+            trace.append(None)
+            cb()
         ang = scene.drive_flap(m, d, n, 180, ramp=FOLD_STEPS, hold=HOLD, cb=cb)
         p_f = np.array(d.flexvert_xpos)
         if bar:  # brief 33 step 3: clamp the fold with the bar while the flap retracts
             drive_bar(m, d, y=scene.CY_B, z=scene.BAR_DROP, hold=BAR_HOLD)
-        back = scene.drive_flap(m, d, n, retract_deg, ramp=RETRACT_STEPS, hold=0, cb=cb)
+        back = scene.drive_flap(m, d, n, retract_deg, ramp=RETRACT_STEPS, hold=0)  # brief 43: retract not sampled (seed 2 front retract +8.5% then -10.3%: release transient)
         if not bar:  # brief 38: no clamp; settle 500 after the retract
             for _ in range(FLAT_SETTLE):
                 mujoco.mj_step(m, d)

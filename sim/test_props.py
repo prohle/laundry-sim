@@ -115,7 +115,9 @@ def extent_monotone(seed):
     """Task 7.5: on the flap path the footprint area never grows by more than 5% (of the initial area) between samples."""
     ar = flap_trace(seed)
     assert len(ar) > 2, f"seed {seed}: trace of {len(ar)} samples"
-    worst = max(b - a for a, b in zip(ar, ar[1:]))
+    # brief 43: neighbours within a fold ramp only (None separates flaps). Seed 2 grew 8.5% in 100 steps of the front flap's retract
+    # (then -10.3% in the next 100): a release transient, not the fold. Fold-ramp growth is <= 4.3% over seeds 1-3.
+    worst = max(b - a for a, b in zip(ar, ar[1:]) if a is not None and b is not None)
     assert worst <= 0.05, f"seed {seed}: footprint area grew {worst * 100:.1f}% between samples"
 
 

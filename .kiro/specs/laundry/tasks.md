@@ -143,6 +143,18 @@ Reference: `docs/folds.md`. The arms become the loader; the board does the foldi
 - [ ] 7.4 Multi-view render: a 2x2 contact sheet (top, side_l, side_r, front) per fold, and a video
       cut from the top and one side.
 
+- [x] 7.8 Two failing checks in sim/check.py, both marginal. Investigate before loosening.
+      a) flap-carries: print the measured lift for all four flaps. If only the front flap is
+         below 5 mm and it matches the 7.1 report, lower the threshold to 3 mm with a comment
+         (least overhang, lifts the least cloth). If the front carry has dropped since 7.1,
+         report it as a board regression and leave the threshold.
+      b) props extent_monotone, seed 2 grows 8.5%: find the phase. If the growth is in the
+         settle after release, sample only the lift-and-carry and keep the 5% tolerance. If
+         it is in the fold itself, raise the tolerance to 10% with a comment naming seed 2,
+         and report towel and tee growth separately. Do not delete the property.
+      Acceptance: `sim/.venv/bin/python sim/check.py` prints VERDICT: PASS (20 checks) and
+      both checks print their measured numbers. Commit with the task number.
+
 ## Phase 6 — Kiro artefacts (continuous)
 
 - [ ] 6.1 MCP server `sim-tools`: `run_episode`, `eval_suite`, `render_clip`.
