@@ -155,6 +155,22 @@ Reference: `docs/folds.md`. The arms become the loader; the board does the foldi
       Acceptance: `sim/.venv/bin/python sim/check.py` prints VERDICT: PASS (20 checks) and
       both checks print their measured numbers. Commit with the task number.
 
+## Phase 8 — The wardrobe (15–17 Nov)
+
+One fold per garment, along the board's depth axis. The fixed symmetric arms cannot fold along the
+width axis (both grasp points would sit on one side; the far arm cannot reach), so the legs-together
+fold for pants is out of reach with this machine — that is limit 7, documented. Garments are scaled to
+the board; the README says so.
+
+- [ ] 8.1 Tee at full strength: the 100-run clean protocol (seeds 11-20), same as the towel's 55/55.
+- [x] 8.2 Pants, shorts, dress on the half-fold program.
+      Scale to the board: pants W 0.44 x H 0.70 inseam 0.40; shorts W 0.44 x H 0.55 inseam 0.28;
+      dress W 0.40 (hem 0.50) x H 0.70. Same program as the tee: grasp hem_l/hem_r, carry to the
+      front edge minus 0.10 m. Wire --clean for every garment.
+      Acceptance: each garment runs the clean protocol and writes its table to sim/out/.
+- [ ] 8.3 The wardrobe table: one command, all garments, success rates side by side; written to
+      sim/out/wardrobe.md and shown on the page.
+
 ## Phase 6 — Kiro artefacts (continuous)
 
 - [ ] 6.1 MCP server `sim-tools`: `run_episode`, `eval_suite`, `render_clip`.

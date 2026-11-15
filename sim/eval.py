@@ -184,21 +184,21 @@ def tee_run(i, seed, tmp, inward=0.17, lift_z=fold.Z_LIFT):
     return row
 
 
-def tee_half_run(i, seed, tmp):
+def tee_half_run(i, seed, tmp, kind="tee"):
     """Task 7.7 / brief 40: tee half fold with the arms (hems to the fold line), whole-garment width/depth/on-top check."""
     yaw, dx, dy = drop(np.random.default_rng(seed + i))
-    obj = os.path.join(tmp, "tee.obj")
-    posed_obj(obj, yaw, dx, dy, "tee")
-    m = mujoco.MjModel.from_xml_string(scene.build(obj, "tee"))
+    obj = os.path.join(tmp, kind + ".obj")
+    posed_obj(obj, yaw, dx, dy, kind)
+    m = mujoco.MjModel.from_xml_string(scene.build(obj, kind))
     d = mujoco.MjData(m)
     mujoco.mj_forward(m, d)
-    ox, oy = scene._offset("tee")
+    ox, oy = scene._offset(kind)
     pos = np.array(d.flexvert_xpos)
-    lm = {n: (ox + x + dx, oy + z + dy) for n, (x, z) in garment.build_full("tee")[3].items()}
+    lm = {n: (ox + x + dx, oy + z + dy) for n, (x, z) in garment.build_full(kind)[3].items()}
     cs = [pos[np.argmin(np.hypot(pos[:, 0] - lm[n][0], pos[:, 1] - lm[n][1]))].copy() for n in ("hem_l", "hem_r")]
     row = dict(run=i, dx=dx, dy=dy, result="NOREACH")
     try:
-        r = program.run_program(m, program.tee_half_program(), corners=cs, landmarks=lm, kind="tee", width_min=fold.TEE_WIDTH_MIN, moved_low=True, top_min=fold.TEE_TOP_MIN)
+        r = program.run_program(m, program.half_fold_program(kind), corners=cs, landmarks=lm, kind=kind, width_min=fold.TEE_WIDTH_MIN, moved_low=True, top_min=fold.TEE_TOP_MIN)
     except ValueError as e:
         row["why"] = str(e)
         return row
@@ -221,6 +221,30 @@ def tee_half_table(a):
         else:
             L.append(f"{r['run']:>3} {r['dx']:>6.3f} {r['dy']:>6.3f}  NOREACH: {r.get('why', '')}")
     L += ["", f"success: {nfolded(rows)}/{len(rows)}   wall {time.time() - t0:.0f} s", "Simulated, not a physical fold."]
+    print("\n".join(L))
+    return 0
+
+
+def clean_table(a):
+    """Task 8.1/8.2: half-fold clean protocol for one garment, seeds 11-20 x 10 runs, writes out/<kind>-clean.md."""
+    kind, t0, rows = a.garment, time.time(), []
+    with tempfile.TemporaryDirectory() as tmp:
+        for s in range(11, 21):
+            rows += [(s, tee_half_run(i, s, tmp, kind)) for i in range(10)]
+    L = [f"Simulated {kind} half fold with the arms (hems to front edge - 0.10 m), kinematic grasp, garment scaled to the board. Seeds 11-20 x 10 runs, {time.strftime('%Y-%m-%d')}.",
+         f"Check: width >= {fold.TEE_WIDTH_MIN} x before, depth <= {fold.DEPTH_MAX} x before, moved half >= {fold.TEE_TOP_MIN * 1000:.0f} mm above the stationary half. Yaw 0, position +-0.04 m. No tuning.", "",
+         "```", "seed run    dx     dy   x0->x1        y0->y1        w  d  t  result"]
+    for s, r in rows:
+        if "r" in r:
+            q = r["r"]
+            L.append(f"s{s:<3}{r['run']:>3} {r['dx']:>6.3f} {r['dy']:>6.3f}  {q['x0']:.3f}->{q['x1']:.3f}  {q['y0']:.3f}->{q['y1']:.3f}  {int(q['width_ok'])}  {int(q['depth_ok'])}  {int(q['top_ok'])}  {r['result']}")
+        else:
+            L.append(f"s{s:<3}{r['run']:>3} {r['dx']:>6.3f} {r['dy']:>6.3f}  NOREACH: {r.get('why', '')}")
+    rs = [r for _, r in rows]
+    dist = {(round(r["dx"], 9), round(r["dy"], 9)) for r in rs}
+    L += ["", f"success: {nfolded(rs)}/{len(rs)}   distinct drops: {len(dist)}   wall {time.time() - t0:.0f} s", "```", "Simulated, not a physical fold."]
+    os.makedirs(os.path.join(os.path.dirname(os.path.abspath(__file__)), "out"), exist_ok=True)
+    open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "out", f"{kind}-clean.md"), "w").write("\n".join(L) + "\n")
     print("\n".join(L))
     return 0
 
@@ -371,7 +395,7 @@ def reach_table():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--garment", choices=("towel", "tee"), default="towel")
+    ap.add_argument("--garment", choices=("towel", "tee", "pants", "shorts", "dress"), default="towel")
     ap.add_argument("--inward", type=float, default=0.17, help="tee: sleeve inward distance")
     ap.add_argument("--lift", type=float, default=fold.Z_LIFT, help="tee: lift height")
     ap.add_argument("--runs", type=int, default=10)
@@ -390,6 +414,11 @@ def main():
         return scan_table()
     if a.reach:
         return reach_table()
+    if a.garment != "towel" and a.clean:
+        return clean_table(a)
+    if a.garment != "towel":
+        a.policy = a.policy or ("arms" if a.garment != "tee" else None)
+        return tee_half_table(a) if a.policy == "arms" else tee_table(a)
     if a.garment == "tee":
         return tee_half_table(a) if a.policy == "arms" else tee_table(a)
     if a.clean:

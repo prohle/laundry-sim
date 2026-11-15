@@ -244,11 +244,11 @@ def main():
     from PIL import Image
     import scene
     ap = argparse.ArgumentParser()
-    ap.add_argument("--garment", choices=("towel", "tee"), default="towel")
+    ap.add_argument("--garment", choices=("towel", "tee", "pants", "shorts", "dress"), default="towel")
     ap.add_argument("--policy", choices=("scripted", "arms"), default="scripted")
-    ap.add_argument("--y", type=float, default=0.30, help="tee arms: pinch y at the carry target, inside the board (brief 42)")
+    ap.add_argument("--y", type=float, default=None, help="arms: pinch y at the carry target; default front edge - 0.10 (tee 0.30)")
     a = ap.parse_args()
-    tee = a.garment == "tee"
+    tee = a.garment != "towel"   # any garment on the half-fold program
     verts, faces, _ = garment.build(a.garment)
     out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "out")
     os.makedirs(out, exist_ok=True)
@@ -267,11 +267,11 @@ def main():
     if tee:
         import program
         d0 = mujoco.MjData(m); mujoco.mj_forward(m, d0)
-        ox, oy = scene._offset("tee")
-        lm = {n: (ox + x, oy + z) for n, (x, z) in garment.build_full("tee")[3].items()}
+        ox, oy = scene._offset(a.garment)
+        lm = {n: (ox + x, oy + z) for n, (x, z) in garment.build_full(a.garment)[3].items()}
         pos = np.array(d0.flexvert_xpos)
         cs = [pos[np.argmin(np.hypot(pos[:, 0] - lm[n][0], pos[:, 1] - lm[n][1]))].copy() for n in ("hem_l", "hem_r")]
-        kw = dict(program=program.tee_half_program(a.y), corners=cs, landmarks=lm, kind="tee", width_min=TEE_WIDTH_MIN, moved_low=True, top_min=TEE_TOP_MIN)
+        kw = dict(program=program.half_fold_program(a.garment, a.y), corners=cs, landmarks=lm, kind=a.garment, width_min=TEE_WIDTH_MIN, moved_low=True, top_min=TEE_TOP_MIN)
     try:
         r = run(m, trace, render, **kw)
     except ValueError as ex:

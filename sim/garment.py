@@ -6,6 +6,8 @@ Tee: body spans x in [0, W]; sleeves extend to x < 0 and x > W, from the top dow
 Pins are the two vertices nearest to (0, H - sleeve_depth) and (W, H - sleeve_depth).
 For the towel the same rule applies with depth 0: the two top corners.
 build_full also returns named landmarks {name: (x, z)} for fold programs.
+Garments are scaled to the folding board (y -0.30..0.40, x 0.20..1.00), not to real sizes: pants 0.44 x 0.70,
+shorts 0.44 x 0.55, dress 0.40 (hem 0.50) x 0.70. Results say so.
 """
 import argparse
 import math
@@ -13,9 +15,9 @@ import math
 DEFAULTS = {
     "towel": dict(width=0.70, height=0.40, cell=0.035, mass=0.48),
     "tee": dict(width=0.50, height=0.70, sleeve=0.20, sleeve_depth=0.18, cell=0.035, mass=0.30),
-    "pants": dict(width=0.44, height=0.95, inseam=0.55, gap=0.05, cell=0.035, mass=0.45),
+    "pants": dict(width=0.44, height=0.70, inseam=0.40, gap=0.05, cell=0.035, mass=0.45),
     "shorts": dict(width=0.44, height=0.55, inseam=0.28, gap=0.05, cell=0.035, mass=0.25),
-    "dress": dict(width=0.40, height=1.00, hem=0.70, cell=0.035, mass=0.40),
+    "dress": dict(width=0.40, height=0.70, hem=0.50, cell=0.035, mass=0.40),
 }
 
 

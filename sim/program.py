@@ -18,7 +18,7 @@ run_program(m, program, ...) -> {"steps": [{"name", "ok", "numbers"}], "folded":
 import numpy as np
 
 import fold
-
+import garment
 OVERLAP_MIN = 0.60
 
 
@@ -59,6 +59,18 @@ def tee_program(dx=0.0, inward=0.17, lift_z=fold.Z_LIFT):
                  lower_z=fold.Z_DOWN, release=True, body_x=(0.20 + dx, 0.60 + dx), check="sleeve_inside"),
             dict(name="body_half", grasp=["hem_l", "hem_r"], lift_z=lift_z, carry=(0.0, 0.0), carry_to_y=0.25,
                  lower_z=fold.Z_DOWN, release=True, front_only=False, check="halves_overlap")]
+
+
+def front_edge_y(kind):
+    """Nominal world y of the garment's front edge (max-y landmark line) as laid on the shelf."""
+    import scene
+    lm = garment.build_full(kind)[3]
+    return scene._offset(kind)[1] + max(z for _, z in lm.values())
+
+
+def half_fold_program(kind, y_fold=None, **kw):
+    """Task 8.2: hems to the front edge minus 0.10 m, for any garment. Tee: 0.30, unchanged."""
+    return tee_half_program(round(front_edge_y(kind) - 0.10, 4) if y_fold is None else y_fold, **kw)
 
 
 def tee_half_program(y_fold=0.30, lift_z=0.85, lower_z=0.72, settle=500):
