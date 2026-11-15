@@ -48,7 +48,7 @@ def metrics(p0, p1, half_low):
 TOTAL_STEPS = 50 + 150 + 50 + 200 + 100 + 50 + 100     # control steps in run(), after SETTLE
 
 
-def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, friction=False, program=None, landmarks=None, kind="towel", whole_checks=True, width_min=None, moved_low=False, top_min=None):
+def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, friction=False, program=None, landmarks=None, kind="towel", whole_checks=True, width_min=None, moved_low=False, top_min=None, keep=None):
     """corners: optional perceived (left, right) grasp targets; default is the fixed lay-down corners.
     y_fold: optional fold target y for the pinch points; default Y_FOLD.
     program: optional list of steps (see program.py); None keeps the single scripted trajectory.
@@ -56,6 +56,8 @@ def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, fri
     steps_out = []
     y_fold = Y_FOLD if y_fold is None else y_fold
     d = mujoco.MjData(m)
+    if keep is not None:
+        keep.append(d)                              # caller continues on this MjData (task 9.1 prologue)
     mujoco.mj_forward(m, d)
     adr, n = qpos_adr(m)
     sl = slice(adr, adr + 3 * n)
@@ -167,6 +169,12 @@ def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, fri
         ctx = dict(half_low=half_low, ymid=ymid)
         for k, st in enumerate(program):
             pre = np.array(d.flexvert_xpos)
+            if "dynamic" in st:                             # task 9.1: measure first; None skips the step, else a dict of overrides
+                upd = st["dynamic"](pre)
+                if upd is None:
+                    steps_out.append(dict(name=st["name"], ok=True, numbers=dict(skipped=True)))
+                    continue
+                st = {**st, **upd}
             try:
                 tg = [P.resolve(g, lm) for g in st["grasp"]]
                 if k > 0:                                   # re-approach: open, rise, move over the grasp points, descend
@@ -192,6 +200,8 @@ def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, fri
                     move(at(y=st["carry_to_y"]), 200)
                 elif cdx or cdy:
                     move({s: tip[s] + np.array([cdx, cdy, 0.0]) for s in arms.SIDES}, 200)
+                for _ in range(st.get("hold", 0)):          # task 9.1: hold lifted so the cloth settles
+                    step(tip)
                 move(at(z=st["lower_z"]), 100)              # lower
                 if st.get("release", True):
                     state["grip"] = arms.GRIP_OPEN; state["grasp"] = False

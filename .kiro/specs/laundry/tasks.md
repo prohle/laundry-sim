@@ -177,6 +177,16 @@ the board; the README says so.
       row, wardrobe table, seed-overlap caveat, dress failing-drop sentence, rewritten limits.
       Acceptance: `sim/wardrobe.py`, `npm run build` and the `STATIC_EXPORT=1` build exit 0; dress at 92.
 
+## Phase 9 — Fold pre-phases (15–17 Nov)
+
+- [x] 9.1 Square-settle-align prologue, then one flap retry.
+      Square: arms grasp the shoulders, lift 3 cm, settle 500 steps, lower. Align: the garment's
+      fold line within 1 cm of the left hinge; if not, the arms carry it until it is. Then one
+      four-flap retail fold with the prologue.
+      TRIED, FAILED: even squared, settled and aligned, the flaps still drag the cloth through the
+      board (area 0.277, mean z 23.7 mm BELOW the board, on-centre 25%). Negative result 8. The arms
+      half-fold wardrobe remains the shipped result.
+
 ## Phase 6 — Kiro artefacts (continuous)
 
 - [ ] 6.1 MCP server `sim-tools`: `run_episode`, `eval_suite`, `render_clip`.

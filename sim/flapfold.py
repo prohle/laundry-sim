@@ -49,12 +49,13 @@ def hull_area(p):
     return float(abs(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1))) / 2)
 
 
-def run(m, order=TOWEL_ORDER, retract_deg=90.0, frames=None, bar=True, trace=None):
+def run(m, order=TOWEL_ORDER, retract_deg=90.0, frames=None, bar=True, trace=None, d=None):
     """Fold-and-retract each flap in order. Returns dict: a0, areas (per step), area, z, nan, folded, angles; d is returned as 'data'.
     trace: optional list; the hull area ratio is appended at the start of each flap's fold and every 100 steps of the fold ramp, with a
     None before each flap (the flap-path extent property compares neighbours within a fold ramp only; retract and bar release are not sampled)."""
-    d = mujoco.MjData(m)
-    mujoco.mj_forward(m, d)
+    if d is None:  # task 9.1: a caller may pass a data that already had the prologue run on it
+        d = mujoco.MjData(m)
+        mujoco.mj_forward(m, d)
     for _ in range(SETTLE):
         mujoco.mj_step(m, d)
     a0 = hull_area(np.array(d.flexvert_xpos))
