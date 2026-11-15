@@ -86,19 +86,26 @@ cap is in the file, not hidden.
 
 Measured with `tools/credits.sh`, which reads `~/.kiro/sessions/*/*/messages.jsonl`.
 
-| | before the diet (65 turns) | this build (19 turns) |
+| | before the diet (65 turns, the Fold build) | this build (49 turns, 9-15 Nov) |
 |---|---|---|
-| credits per turn | 4.83 | **1.73** |
-| requests per turn | 16.6 | **8.2** |
-| fixed context per request | 82.6 KB | **9.5 KB** |
-| credits spent | 314.1 | **32.9** |
+| credits per turn | 4.83 | **2.29** |
+| credits spent | 314.1 | **112.4** |
 
 The diet: completed tasks archived out of the load path, the resources glob narrowed to `tasks.md`,
 `design.md` and `requirements.md` dropped from the default load, one verification call, and one task
-per brief.
+per brief. The mean rose from the first week's 1.73 as the briefs grew to whole subsystems (the
+board, the wardrobe), which is the expected shape: cheap turns for narrow tasks, dearer turns for
+big ones.
 
-Two turns broke the one-task rule (brief 09 covered 3.1+3.3, brief 17 covered 4.1–4.3) and were the
-two most expensive (3.17 and 2.48 credits). The rest averaged about 1.5.
+**Killed runs.** Three dispatches died on wall-clock timeouts (two 50-60 minute shell limits, one
+SIGTERM), each mid-task. In each case the agent's completed work was already on disk; the PM reviewed
+it, committed it, and re-dispatched only what was missing. One one-line threshold completion
+(`LIFT_MIN`, task 7.8) was made by the PM and is marked as such in the commit.
+
+**Division of labour.** The agent wrote every line that ships: the simulator, the harness, the page,
+the MCP server, the property tests. The PM wrote the specs, briefs and steering, ran the long
+measurement protocols (five clean runs of ~50 minutes each - too long for a single turn, which is
+why briefs are now sized under ~40 minutes), and holds the judgement calls.
 
 ## What Kiro did well
 
