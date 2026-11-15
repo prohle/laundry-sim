@@ -61,7 +61,7 @@ def tee_program(dx=0.0, inward=0.17, lift_z=fold.Z_LIFT):
                  lower_z=fold.Z_DOWN, release=True, front_only=False, check="halves_overlap")]
 
 
-def tee_half_program(y_fold=0.05, lift_z=0.85, lower_z=0.73, settle=500):
+def tee_half_program(y_fold=0.30, lift_z=0.85, lower_z=0.72, settle=500):
     """Brief 40 / task 7.7: both hems to the fold line, lift 0.85, lower 0.73, release, settle 500. One step, whole-garment check."""
     return [dict(name="hem_to_fold", grasp=["hem_l", "hem_r"], lift_z=lift_z, carry=(0.0, 0.0), carry_to_y=y_fold,
                  lower_z=lower_z, release=True, front_only=False, settle=settle)]

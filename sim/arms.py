@@ -16,7 +16,9 @@ HOVER = 0.05                                     # ready pose: pinch point this 
 ARMATURE = 0.02                                  # reflected inertia; keeps kv stable at dt = 0.004 with Euler
 KP, KV, KV_SLIDE = 40, 1.5, 1.0
 GRIP_OPEN = 0.03                                 # each finger; two fingers -> 0.06 m opening
-RANGES = {"shoulder": (-2.7, 2.7), "upper": (-2.4, 1.0), "elbow": (-0.3, 2.8), "wrist": (-2.2, 2.2),
+# brief 41: upper widened from (-2.4, 1.0) to (-2.6, 1.0). The -2.4 limit was an arbitrary choice when the arm
+# was built, not a physical constraint; the tee hem needs -2.402. No other joint changed.
+RANGES = {"shoulder": (-2.7, 2.7), "upper": (-2.6, 1.0), "elbow": (-0.3, 2.8), "wrist": (-2.2, 2.2),
           "grip": (0.0, GRIP_OPEN)}
 HINGES = ("shoulder", "upper", "elbow", "wrist")
 GEOM = 'contype="0" conaffinity="0"'

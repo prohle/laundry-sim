@@ -135,7 +135,7 @@ Reference: `docs/folds.md`. The arms become the loader; the board does the foldi
 - [ ] 7.5 Move `extent_monotone` from the arms path to the flap path; the arms are the loader.
 - [~] 7.6 Blade fold and cloth bending stiffness: one sweep, one clean half fold (area ratio ~0.5).
       Brief 39: `flapfold.py --mode blade|flap --young Pa --sweep list`. Decision rule: ratio 0.4-0.6 and on-centre > 60%.
-- [ ] 7.7 T-shirt half fold with the arms (hem to shoulders), on the board. The garment is real even if
+- [x] 7.7 T-shirt half fold with the arms (hem to shoulders), on the board. The garment is real even if
       the fold is one step. Unblock: widen the upper joint range to [-2.6, 1.0] (the -2.4 limit was
       arbitrary and the hem needs -2.402), and carry the hem to y = 0.40 (the shoulder line), not 0.05.
 - [ ] 7.3 T-shirt fold as a flap program: left, right, bottom, top (retail fold).

@@ -198,7 +198,7 @@ def tee_half_run(i, seed, tmp):
     cs = [pos[np.argmin(np.hypot(pos[:, 0] - lm[n][0], pos[:, 1] - lm[n][1]))].copy() for n in ("hem_l", "hem_r")]
     row = dict(run=i, dx=dx, dy=dy, result="NOREACH")
     try:
-        r = program.run_program(m, program.tee_half_program(), corners=cs, landmarks=lm, kind="tee", width_min=fold.TEE_WIDTH_MIN, moved_low=True)
+        r = program.run_program(m, program.tee_half_program(), corners=cs, landmarks=lm, kind="tee", width_min=fold.TEE_WIDTH_MIN, moved_low=True, top_min=fold.TEE_TOP_MIN)
     except ValueError as e:
         row["why"] = str(e)
         return row
@@ -210,8 +210,8 @@ def tee_half_table(a):
     t0 = time.time()
     with tempfile.TemporaryDirectory() as tmp:
         rows = [tee_half_run(i, a.seed, tmp) for i in range(a.runs)]
-    L = [f"Simulated tee half fold with the arms (hems to y 0.05, lift 0.85, lower 0.73, settle 500), kinematic grasp. {a.runs} runs, seed {a.seed}.",
-         f"Check: width >= {fold.TEE_WIDTH_MIN} x before, depth <= {fold.DEPTH_MAX} x before, moved half >= {fold.TOP_MIN * 1000:.0f} mm above the stationary half. Yaw 0, position +-0.04 m.", "",
+    L = [f"Simulated tee half fold with the arms (hems to y 0.30, lift 0.85, lower 0.72, settle 500), kinematic grasp. {a.runs} runs, seed {a.seed}.",
+         f"Check: width >= {fold.TEE_WIDTH_MIN} x before, depth <= {fold.DEPTH_MAX} x before, moved half >= {fold.TEE_TOP_MIN * 1000:.0f} mm above the stationary half. Yaw 0, position +-0.04 m.", "",
          "run    dx     dy   x0->x1        y0->y1        z_moved z_still  w  d  t  result"]
     for r in rows:
         if "r" in r:

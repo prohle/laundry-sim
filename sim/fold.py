@@ -27,6 +27,7 @@ INWARD = 0.10         # smallest inward move that reaches the scan's plateau at 
 Y_FOLD = -0.05        # pinch y at the far side; the towel spans y -0.15..0.25, so 0.18 would not fold it
 SETTLE = 200          # not counted in the ~550 fold steps
 WIDTH_MIN, DEPTH_MAX, TOP_MIN = 0.90, 0.60, 0.002  # x1/x0, y1/y0, metres
+TEE_TOP_MIN = 0.003   # brief 41: tee moved half >= 3 mm above the stationary half
 TEE_WIDTH_MIN = 0.85  # brief 40: the sleeves make the tee looser than the towel
 TRACE_EVERY = 25
 
@@ -47,7 +48,7 @@ def metrics(p0, p1, half_low):
 TOTAL_STEPS = 50 + 150 + 50 + 200 + 100 + 50 + 100     # control steps in run(), after SETTLE
 
 
-def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, friction=False, program=None, landmarks=None, kind="towel", whole_checks=True, width_min=None, moved_low=False):
+def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, friction=False, program=None, landmarks=None, kind="towel", whole_checks=True, width_min=None, moved_low=False, top_min=None):
     """corners: optional perceived (left, right) grasp targets; default is the fixed lay-down corners.
     y_fold: optional fold target y for the pinch points; default Y_FOLD.
     program: optional list of steps (see program.py); None keeps the single scripted trajectory.
@@ -225,9 +226,10 @@ def run(m, trace=None, render=None, on_step=None, corners=None, y_fold=None, fri
     res = metrics(pos0, pos, ~half_low if moved_low else half_low)   # moved_low: the carried half is the low-y one (tee hem)
     wrinkle = float(np.abs(np.linalg.norm(pos[e[:, 0]] - pos[e[:, 1]], axis=1) / rest - 1.0).mean())
     res.update(slip=slip.get("at", "none"), slip_dist=slip.get("dist", 0.0), maxq=state["maxq"], nan=state["nan"], stretch=stretch, wrinkle=wrinkle, time=state["step"] * m.opt.timestep, y_centre=float((pos[:, 1].max() + pos[:, 1].min()) / 2))
+    res.update(below_board=int((pos[:, 2] < 0.71).sum()), below_board_10mm=int((pos[:, 2] < 0.70).sum()))
     res["width_ok"] = res["x1"] >= (WIDTH_MIN if width_min is None else width_min) * res["x0"]
     res["depth_ok"] = res["y1"] <= DEPTH_MAX * res["y0"]
-    res["top_ok"] = res["z_moved"] - res["z_still"] >= TOP_MIN
+    res["top_ok"] = res["z_moved"] - res["z_still"] >= (TOP_MIN if top_min is None else top_min)
     res["folded"] = (not state["nan"]) and res["width_ok"] and res["depth_ok"] and res["top_ok"]
     if program is not None and not friction:
         res["steps"] = steps_out
@@ -244,7 +246,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--garment", choices=("towel", "tee"), default="towel")
     ap.add_argument("--policy", choices=("scripted", "arms"), default="scripted")
-    ap.add_argument("--y", type=float, default=0.05, help="tee arms: pinch y at the fold line")
+    ap.add_argument("--y", type=float, default=0.30, help="tee arms: pinch y at the carry target, inside the board (brief 42)")
     a = ap.parse_args()
     tee = a.garment == "tee"
     verts, faces, _ = garment.build(a.garment)
@@ -269,7 +271,7 @@ def main():
         lm = {n: (ox + x, oy + z) for n, (x, z) in garment.build_full("tee")[3].items()}
         pos = np.array(d0.flexvert_xpos)
         cs = [pos[np.argmin(np.hypot(pos[:, 0] - lm[n][0], pos[:, 1] - lm[n][1]))].copy() for n in ("hem_l", "hem_r")]
-        kw = dict(program=program.tee_half_program(a.y), corners=cs, landmarks=lm, kind="tee", width_min=TEE_WIDTH_MIN, moved_low=True)
+        kw = dict(program=program.tee_half_program(a.y), corners=cs, landmarks=lm, kind="tee", width_min=TEE_WIDTH_MIN, moved_low=True, top_min=TEE_TOP_MIN)
     try:
         r = run(m, trace, render, **kw)
     except ValueError as ex:
@@ -283,7 +285,7 @@ def main():
     print(f"width: x {r['x0']:.3f} -> {r['x1']:.3f} (>= {wmin} x before): {'ok' if r['width_ok'] else 'FAIL'}\n"
           f"depth: y {r['y0']:.3f} -> {r['y1']:.3f} (<= {DEPTH_MAX} x before): {'ok' if r['depth_ok'] else 'FAIL'}\n"
           f"on top: mean z moved {r['z_moved']:.4f}, still {r['z_still']:.4f} (diff >= {TOP_MIN}): {'ok' if r['top_ok'] else 'FAIL'}\n"
-          f"final y-centre {r['y_centre']:.3f}  max edge stretch {r['stretch']:.2f}  nan {r['nan']}  max |joint| "+" ".join(f"{k} {v:.3f}/{max(abs(x) for x in arms.RANGES[k])}" for k, v in r['maxq'].items())+f" rad (INWARD {INWARD} m, Z_LIFT {Z_LIFT})")
+          f"final y-centre {r['y_centre']:.3f}  max edge stretch {r['stretch']:.2f}  below board top {r['below_board']} (<0.70: {r['below_board_10mm']})  nan {r['nan']}  max |joint| "+" ".join(f"{k} {v:.3f}/{max(abs(x) for x in arms.RANGES[k])}" for k, v in r['maxq'].items())+f" rad (INWARD {INWARD} m, Z_LIFT {Z_LIFT})")
     print("FOLDED" if r["folded"] else "NOT FOLDED")
     return 0 if r["folded"] else 1
 
