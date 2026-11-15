@@ -22,7 +22,8 @@ Category: **Resurrection**, Kiroween 2026. Built with Kiro.
 
 1. `sim/garment.py` generates a towel or a T-shirt from parameters — no downloaded meshes.
 2. `sim/scene.py` builds the cabinet, shelf, two actuated arms and cameras as MJCF.
-3. `sim/fold.py` runs the scripted fold: grasp two front corners, lift, carry back, lower, release.
+3. `sim/fold.py` runs the half fold for any garment: grasp the two hem corners, lift, carry to the
+   front edge, lower, release.
 4. `sim/check.py` runs 16 checks in about 85 s; a Kiro hook runs it after every write.
    `sim/test_props.py` runs five Hypothesis properties (66 examples).
 5. `sim/eval.py` runs N seeded drops and reports a table.
@@ -30,20 +31,26 @@ Category: **Resurrection**, Kiroween 2026. Built with Kiro.
 
 ## What is measured
 
-Held-out drops, position randomised ±0.04 m, yaw fixed at 0. `patch` is the radius of cloth carried by
-the kinematic grasp.
+Five garments, one fold each, the full clean protocol (seeds 11-20 x 10 runs, position randomised
++-0.04 m, yaw 0). Garments are scaled to the board.
 
-| config | all runs | success | unseen drops only |
+| garment | runs | folded | distinct drops |
 |---|---|---|---|
-| patch 0.12 m | 100 | 70/100 | **35/55** (10 distinct) |
-| patch 0.16 m | 100 | **100/100** | **55/55** (10 distinct) |
+| towel | 100 | **100/100** | 19 (55/55 on the 10 unseen drops) |
+| tee | 100 | **100/100** | 19 |
+| pants | 100 | **100/100** | 19 |
+| shorts | 100 | **100/100** | 19 |
+| dress | 100 | **92/100** | 19 - one drop fails the on-top check, every time it is drawn |
 
-- Depth after the fold: 0.49–0.59 against a 0.60 threshold. Width: 0.91–0.98 against 0.90.
-- Mean simulated time 2.8 s. Mean wrinkle 0.018 (0.012 at patch 0.12) — a proxy, not a measurement.
-- **The 100 runs are 19 distinct drops**, because run `i` of seed `s` draws from `rng(s+i)` and the
-  seeds overlap. The 55 unseen runs are 10 distinct drops. That is the honest sample size.
-- The patch fix was found on seeds 6–10, so those seeds are not held-out for it. Seeds 11–20 were run
-  afterwards and the 10 drops never drawn before are reported separately.
+Depth after each fold: 0.19-0.28 against a 0.60 threshold. Width preserved within 0.85. The moved
+half sits 10-13 mm above the stationary half.
+
+**The 100 runs are 19 distinct drops**, because run `i` of seed `s` draws from `rng(s+i)` and the
+seeds overlap. The dress's failure is deterministic: the drop at (dx -0.011, dy -0.024) fails the
+on-top check on all eight of its appearances, and the other 18 distinct drops fold.
+
+The earlier towel study (grasp patch 0.12 -> 0.16: 35/55 -> 55/55 on unseen drops) is in
+`sim/out/clean.md`; it is the towel's story, not the headline.
 
 ## Negative results, kept
 
@@ -63,14 +70,15 @@ finds them after the tooling is paid for.
 ## Limits
 
 - **Simulated only.** No machine, no fabric, no physical proof.
-- **One garment, one fold.** A 0.70 x 0.40 m towel, folded in half along its depth. The T-shirt
-  generator exists but is not folded.
-- **Kinematic grasp in the shipped result.** The held cloth is moved to the gripper, not gripped by
-  friction. A contact grasp was tried and failed 0/10; the cause is the finger geometry, above.
-- **10 independent drops.** The 100% is real but the sample is small, and the README says so.
+- **One fold per garment**, along the board's depth axis. The fixed symmetric arms cannot fold along
+  the width axis - both grasp points would sit on one side and the far arm cannot reach - so the
+  legs-together fold for pants is out of reach with this machine. That is limit 7.
+- **Garments are scaled to the board** (pants 0.44 x 0.70, dress 0.40 x 0.70); the README says so
+  because the machine is a compact prototype.
+- **Kinematic grasp.** The held cloth is moved to the gripper, not gripped by friction. A contact
+  grasp was tried and failed 0/10; the cause is the finger geometry, above.
+- **19 distinct drops** per garment, not 100. Yaw fixed at 0.
 - **Wrinkle is a proxy** (mean edge strain), not a measurement of appearance.
-- **Yaw is fixed at 0** for the baseline. A rotated garment needs a rotated-frame corner detector
-  (task 3.6, unbuilt).
 
 ## How to run
 
