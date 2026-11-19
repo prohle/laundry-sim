@@ -196,7 +196,7 @@ Every frame comes from MuJoCo; the player replays it, it does not animate it.
       board, flaps, arm links, as boxes with size and colour) and the dynamic state per frame
       (arm joint angles, cloth vertex positions), deterministic, written to `public/replay-<kind>.json`.
       Acceptance: tee and towel export; the JSON loads; a frame count is printed; no NaN.
-- [ ] 10.2 The page gains a replay player: three.js scene built from the JSON, a scrub bar, orbit,
+- [x] 10.2 The page gains a replay player: three.js scene built from the JSON, a scrub bar, orbit,
       the garment picker wired to it, and the real fold log beside it. Labelled
       "a replay of the physics simulation". Acceptance: both modes build; the player scrubs.
 

@@ -107,3 +107,11 @@ footer {
   color: var(--muted);
   font-size: 0.9rem;
 }
+
+.replay-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 720px) { .replay-grid { grid-template-columns: 1fr; } }
+.replay-canvas { width: 100%; aspect-ratio: 4 / 3; background: #15171a; }
+.replay-canvas canvas { display: block; }
+.replay-bar { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.replay-bar input { flex: 1; }
+.replay-log ul { padding-left: 16px; }

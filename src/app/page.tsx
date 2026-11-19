@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import ReplayPlayer from "./ReplayPlayer";
 
 const REPO = "https://github.com/prohle/laundry-sim";
 const base = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
@@ -41,6 +42,11 @@ export default function Page() {
         </div>
         <video key={current.video} src={`${base}/${current.video}`} autoPlay muted loop playsInline />
         <p className="caption">simulated · no machine was built</p>
+      </section>
+
+      <section>
+        <h2>Machine</h2>
+        <ReplayPlayer kind={kind} />
       </section>
 
       <section>
