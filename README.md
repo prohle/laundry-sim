@@ -46,8 +46,17 @@ Depth after each fold: 0.19-0.28 against a 0.60 threshold. Width preserved withi
 half sits 10-13 mm above the stationary half.
 
 **The 100 runs are 19 distinct drops**, because run `i` of seed `s` draws from `rng(s+i)` and the
-seeds overlap. The dress's failure is deterministic: the drop at (dx -0.011, dy -0.024) fails the
-on-top check on all eight of its appearances, and the other 18 distinct drops fold.
+seeds overlap: the 100 runs draw rng seeds 11-29, and the **unseen subset (rng >= 20) is exactly 55
+runs over 10 distinct drops** - which is where the towel's 55/55 comes from. The dress's failure is
+deterministic: the drop at (dx -0.011, dy -0.024) - rng seed 22 - fails the on-top check on all eight
+of its appearances, and all eight are in the unseen subset, so the dress is **47/55 unseen, 45/45
+seen, 92/100 overall**. The other 18 distinct drops fold.
+
+**Every fold lands shorter than the geometric ideal**, and the reason is physical: the arms carry the
+corners, the middle sags, and the crease forms about 7 cm forward of the midline (edge stretch
+1.10-1.15 corroborates). A perfect half of the tee is 0.348 m; measured 0.279 m. That is why the
+depth check is <= 0.60 x and not <= 0.50 x - the threshold is set by the measured crease-walk, not
+chosen to pass.
 
 The earlier towel study (grasp patch 0.12 -> 0.16: 35/55 -> 55/55 on unseen drops) is in
 `sim/out/clean.md`; it is the towel's story, not the headline.
