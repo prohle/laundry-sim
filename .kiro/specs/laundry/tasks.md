@@ -187,6 +187,19 @@ the board; the README says so.
       board (area 0.277, mean z 23.7 mm BELOW the board, on-centre 25%). Negative result 8. The arms
       half-fold wardrobe remains the shipped result.
 
+## Phase 10 — The replay player (18–20 Nov)
+
+The page shows recorded videos; a scrub through the actual simulation is stronger and just as honest.
+Every frame comes from MuJoCo; the player replays it, it does not animate it.
+
+- [x] 10.1 `sim/replay.py`: export one garment's arms half fold as JSON - the static scene (cabinet,
+      board, flaps, arm links, as boxes with size and colour) and the dynamic state per frame
+      (arm joint angles, cloth vertex positions), deterministic, written to `public/replay-<kind>.json`.
+      Acceptance: tee and towel export; the JSON loads; a frame count is printed; no NaN.
+- [ ] 10.2 The page gains a replay player: three.js scene built from the JSON, a scrub bar, orbit,
+      the garment picker wired to it, and the real fold log beside it. Labelled
+      "a replay of the physics simulation". Acceptance: both modes build; the player scrubs.
+
 ## Phase 6 — Kiro artefacts (continuous)
 
 - [ ] 6.1 MCP server `sim-tools`: `run_episode`, `eval_suite`, `render_clip`.
