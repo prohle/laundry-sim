@@ -52,6 +52,14 @@ deterministic: the drop at (dx -0.011, dy -0.024) - rng seed 22 - fails the on-t
 of its appearances, and all eight are in the unseen subset, so the dress is **47/55 unseen, 45/45
 seen, 92/100 overall**. The other 18 distinct drops fold.
 
+*The dress's hem drapes over the board's front edge in every run, and which half carries that
+drape follows the drop: every drop with dy >= +0.008 (8 of 8) drapes from the stationary half, and
+10 of the 11 drops with dy <= +0.001 drape from the moved half. The on-top margin across the 19
+distinct drops is 1.7-23.6 mm, median 8.9 mm, against a 3 mm threshold. The failing drop (rng 22,
+dx -0.011, dy -0.024) is the one whose moved half sags deepest - 678.6 mm, 16 mm below the next
+deepest - leaving its margin at 1.7 mm, 1.3 mm short. The other eighteen clear it. Not established:
+why that drop sags deeper than its neighbours. Reproduce: `sim/diag_dress.py --sweep`, about 7 minutes.
+
 **Every fold lands shorter than the geometric ideal**, and the reason is physical: the arms carry the
 corners, the middle sags, and the crease forms about 7 cm forward of the midline (edge stretch
 1.10-1.15 corroborates). A perfect half of the tee is 0.348 m; measured 0.279 m. That is why the

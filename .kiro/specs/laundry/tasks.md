@@ -200,6 +200,18 @@ Every frame comes from MuJoCo; the player replays it, it does not animate it.
       the garment picker wired to it, and the real fold log beside it. Labelled
       "a replay of the physics simulation". Acceptance: both modes build; the player scrubs.
 
+- [x] 10.3 Diagnose the dress's one failing drop: (dx -0.011, dy -0.024), rng seed 22, fails on-top
+      with width and depth passing. Reproduce it, instrument it (per-vertex z of the moved half at
+      release, where the hem lands, whether any vertex leaves the board), and name the mechanism.
+      One configuration; the finding goes in the README in one paragraph.
+      Acceptance: the drop reproduces; the diagnosis is stated with numbers.
+
+- [x] 10.4 The dress margin sweep: the on-top margin for all 19 distinct dress drops, against the
+      3 mm threshold. The back-edge-start hypothesis is falsified (9 of 19 drops start past the back
+      edge and all fold, including dy -0.040). Replace the 10.3 README paragraph - which states the
+      falsified claim - with the margin distribution and the true mechanism.
+      Acceptance: 19 margins printed; the README paragraph is rewritten; no fold is tuned.
+
 ## Phase 6 — Kiro artefacts (continuous)
 
 - [ ] 6.1 MCP server `sim-tools`: `run_episode`, `eval_suite`, `render_clip`.
